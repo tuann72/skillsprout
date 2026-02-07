@@ -39,7 +39,7 @@ export default function HomeFlow() {
   return (
     <div className="relative h-screen w-screen">
       <div className="fixed top-4 right-4 z-20">
-        <NewDraftButton />
+        <NewDraftButton onClick={() => setStep({ kind: "form" })} />
       </div>
       <div className="fixed bottom-4 left-1/2 z-20 -translate-x-1/2">
         <AIPanelArrow />
