@@ -1,17 +1,20 @@
-"use client";
-
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 
+// ---- Data shape ----
+// Mirrors what the backend model will eventually provide.
+// `parentIds` and `childIds` aren't used by the node component itself,
+// but they travel through React Flow's `data` so the tree wrapper can
+// derive edges from them.
 export type SkillNodeData = {
-  label?: string;
+  label: string;
   description?: string;
+  parentIds?: string[];
+  childIds?: string[];
 };
 
 export type SkillNodeType = Node<SkillNodeData, "skill">;
 
 export function SkillNode({ data, selected }: NodeProps<SkillNodeType>) {
-  const label = data?.label ?? "Skill";
-
   return (
     <div
       className={`
@@ -22,13 +25,13 @@ export function SkillNode({ data, selected }: NodeProps<SkillNodeType>) {
       <Handle
         type="target"
         position={Position.Top}
-        className="!h-3 !w-3 !-top-1.5 !border-2 !border-zinc-400 !bg-white"
+        className="!h-2 !w-2 !min-h-0 !min-w-0 !border-0 !bg-transparent"
       />
-      <span className="text-sm font-medium text-zinc-800">{label}</span>
+      <span className="text-sm font-medium text-zinc-800">{data.label}</span>
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!h-3 !w-3 !-bottom-1.5 !border-2 !border-zinc-400 !bg-white"
+        className="!h-2 !w-2 !min-h-0 !min-w-0 !border-0 !bg-transparent"
       />
     </div>
   );
