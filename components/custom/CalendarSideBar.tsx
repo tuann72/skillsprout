@@ -10,13 +10,9 @@ import {
 } from "@/components/ui/sidebar";
 import { Home } from "lucide-react";
 
-interface CalendarSideBarProps {
-  side?: "left" | "right";
-}
-
-export function CalendarSideBar({ side = "left" }: CalendarSideBarProps) {
+export function CalendarSideBar() {
   return (
-    <Sidebar side={side}>
+    <Sidebar>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Application</SidebarGroupLabel>

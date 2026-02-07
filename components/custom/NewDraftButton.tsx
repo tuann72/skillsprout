@@ -1,15 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { FilePlus } from "lucide-react";
 
-export function NewDraftButton({
-  children,
-  className,
-  ...props
-}: React.ComponentProps<typeof Button>) {
+export function NewDraftButton() {
   return (
-    <Button className={`cursor-pointer ${className}`} {...props}>
+    <Button>
       <FilePlus className="h-4 w-4" />
-      {children}
     </Button>
   );
 }

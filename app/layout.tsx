@@ -30,7 +30,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <SidebarProvider defaultOpen={false}>
-          <CalendarSideBar side="right" />
+          <CalendarSideBar />
           <main className="w-full">
             <SidebarTrigger />
             {children}
