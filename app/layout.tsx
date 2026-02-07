@@ -31,8 +31,10 @@ export default function RootLayout({
       >
         <SidebarProvider defaultOpen={false}>
           <CalendarSideBar />
-          <main className="w-full">
-            <SidebarTrigger />
+          <main className="w-full relative">
+            <div className="absolute top-4 left-4 z-20">
+              <SidebarTrigger />
+            </div>
             {children}
           </main>
         </SidebarProvider>
