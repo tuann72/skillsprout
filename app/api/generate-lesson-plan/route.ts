@@ -4,7 +4,10 @@ import Anthropic from "@anthropic-ai/sdk";
 const VALID_LEVELS = ["beginner", "intermediate", "advanced", "expert"] as const;
 type Level = (typeof VALID_LEVELS)[number];
 
-const client = new Anthropic();
+// ✓ Correct - explicitly pass the key
+const client = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
 
 const lessonPlanSchema: Anthropic.Tool = {
   name: "generate_lesson_plan",
