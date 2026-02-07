@@ -10,7 +10,6 @@ export default function Home() {
       </div>
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2">
         <AIPanelArrow />
-      </div>    
       </div>
       <div className="h-screen w-screen bg-white">
         <SkillTreeFlow />
