@@ -11,6 +11,7 @@ export type SkillNodeData = {
   resources?: string[];
   durationMinutes?: number;
   lessonNumber?: number;
+  layer?: number;
   parentIds?: string[];
   childIds?: string[];
   completed?: boolean;
