@@ -109,7 +109,7 @@ async function main() {
 
 
  const response = await client.messages.create({
-   model: "claude-sonnet-4-6",
+   model: "claude-opus-4-6",
    max_tokens: 8192,
    tools: [lessonPlanSchema],
    tool_choice: { type: "tool", name: "generate_lesson_plan" },
