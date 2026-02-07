@@ -19,7 +19,9 @@ import "@xyflow/react/dist/style.css";
 
 import { SkillNode } from "./nodes/SkillNode";
 import type { SkillNodeData } from "./nodes/SkillNode";
-import type { LessonPlan, Difficulty } from "@/types/lesson-plan";
+import { LayerLabelNode } from "./nodes/LayerLabelNode";
+import type { LayerLabelData } from "./nodes/LayerLabelNode";
+import type { LessonPlan, Difficulty, Layer } from "@/types/lesson-plan";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -41,19 +43,25 @@ export type Skill = {
   resources?: string[];
   durationMinutes?: number;
   lessonNumber?: number;
+  layer?: number;
   parentIds?: string[];
   childIds?: string[];
   completed?: boolean;
 };
 
-// ---- LLM output → Skill[] converter ----
+// ---- LLM output → Skill[] + Layer[] converter ----
+
+export type ConvertedPlan = {
+  skills: Skill[];
+  layers: Layer[];
+};
 
 /**
  * Converts the structured LLM output (LessonPlan) into a flat Skill array
  * that the tree can render. `connections` (prerequisites) become parentIds,
- * and childIds are derived as the reverse.
+ * and childIds are derived as the reverse. Also passes through layer metadata.
  */
-export function convertLessonPlan(plan: LessonPlan): Skill[] {
+export function convertLessonPlan(plan: LessonPlan): ConvertedPlan {
   const lessons = plan.lessons;
 
   // Build a lookup: lesson_number → child lesson_numbers
@@ -66,7 +74,7 @@ export function convertLessonPlan(plan: LessonPlan): Skill[] {
     }
   }
 
-  return lessons.map((lesson) => ({
+  const skills: Skill[] = lessons.map((lesson) => ({
     id: String(lesson.lesson_number),
     label: lesson.topic,
     description: lesson.description,
@@ -74,57 +82,88 @@ export function convertLessonPlan(plan: LessonPlan): Skill[] {
     resources: lesson.resources,
     durationMinutes: lesson.duration_minutes,
     lessonNumber: lesson.lesson_number,
+    layer: lesson.layer,
     parentIds: lesson.connections.map(String),
     childIds: (childMap.get(lesson.lesson_number) ?? []).map(String),
     completed: false,
   }));
+
+  return { skills, layers: plan.layers ?? [] };
 }
 
 // ---- Helpers: convert a flat skill list → React Flow nodes + edges ----
 
 const NODE_GAP_X = 220;
-const NODE_GAP_Y = 160;
+const LAYER_GAP_Y = 200; // vertical space between layers (includes label)
+const LABEL_OFFSET_Y = -40; // label sits above the skill nodes in each layer
 
-function buildFlow(skills: Skill[]): {
-  nodes: Node<SkillNodeData>[];
+function buildFlow(
+  skills: Skill[],
+  layers: Layer[] = []
+): {
+  nodes: (Node<SkillNodeData> | Node<LayerLabelData>)[];
   edges: Edge[];
 } {
-  const byId = new Map(skills.map((s) => [s.id, s]));
+  const hasLayers = skills.some((s) => s.layer != null);
 
-  // Root(s): no parents or parents not in list
-  const roots = skills.filter(
-    (s) => !s.parentIds?.length || s.parentIds.every((pid) => !byId.has(pid))
-  );
+  // Group skills by layer (use explicit layer if available, otherwise BFS)
+  const layerMap = new Map<number, string[]>();
 
-  // BFS to assign depth + horizontal index per depth level
-  const positions = new Map<string, { depth: number; index: number }>();
-  const childrenByDepth = new Map<number, string[]>();
-  const queue: { id: string; depth: number }[] = roots.map((r) => ({
-    id: r.id,
-    depth: 0,
-  }));
+  if (hasLayers) {
+    for (const skill of skills) {
+      const l = skill.layer ?? 0;
+      const row = layerMap.get(l) ?? [];
+      row.push(skill.id);
+      layerMap.set(l, row);
+    }
+  } else {
+    // Fallback: BFS from roots
+    const byId = new Map(skills.map((s) => [s.id, s]));
+    const roots = skills.filter(
+      (s) =>
+        !s.parentIds?.length || s.parentIds.every((pid) => !byId.has(pid))
+    );
+    const visited = new Set<string>();
+    const queue: { id: string; depth: number }[] = roots.map((r) => ({
+      id: r.id,
+      depth: 0,
+    }));
 
-  while (queue.length) {
-    const { id, depth } = queue.shift()!;
-    if (positions.has(id)) continue;
+    while (queue.length) {
+      const { id, depth } = queue.shift()!;
+      if (visited.has(id)) continue;
+      visited.add(id);
 
-    const row = childrenByDepth.get(depth) ?? [];
-    positions.set(id, { depth, index: row.length });
-    row.push(id);
-    childrenByDepth.set(depth, row);
+      const row = layerMap.get(depth) ?? [];
+      row.push(id);
+      layerMap.set(depth, row);
 
-    const skill = byId.get(id);
-    skill?.childIds?.forEach((cid) => {
-      if (!positions.has(cid)) queue.push({ id: cid, depth: depth + 1 });
-    });
+      const skill = byId.get(id);
+      skill?.childIds?.forEach((cid) => {
+        if (!visited.has(cid)) queue.push({ id: cid, depth: depth + 1 });
+      });
+    }
   }
 
-  const nodes: Node<SkillNodeData>[] = skills.map((skill) => {
+  // Build layer theme lookup
+  const themeMap = new Map<number, string>();
+  for (const layer of layers) {
+    themeMap.set(layer.layer_number, layer.theme);
+  }
+
+  // Build position lookup from layer map
+  const positions = new Map<string, { depth: number; index: number }>();
+  for (const [depth, ids] of layerMap) {
+    ids.forEach((id, index) => positions.set(id, { depth, index }));
+  }
+
+  // Skill nodes
+  const skillNodes: Node<SkillNodeData>[] = skills.map((skill) => {
     const pos = positions.get(skill.id) ?? { depth: 0, index: 0 };
-    const rowCount = childrenByDepth.get(pos.depth)?.length ?? 1;
+    const rowCount = layerMap.get(pos.depth)?.length ?? 1;
     const rowWidth = (rowCount - 1) * NODE_GAP_X;
     const x = pos.index * NODE_GAP_X - rowWidth / 2;
-    const y = pos.depth * NODE_GAP_Y;
+    const y = pos.depth * LAYER_GAP_Y;
 
     return {
       id: skill.id,
@@ -137,12 +176,39 @@ function buildFlow(skills: Skill[]): {
         resources: skill.resources,
         durationMinutes: skill.durationMinutes,
         lessonNumber: skill.lessonNumber,
+        layer: skill.layer,
         parentIds: skill.parentIds,
         childIds: skill.childIds,
         completed: skill.completed ?? false,
       },
     };
   });
+
+  // Layer label nodes — one per layer, centered above the row
+  const sortedLayers = [...layerMap.keys()].sort((a, b) => a - b);
+  const labelNodes: Node<LayerLabelData>[] = sortedLayers.map(
+    (layerNum) => {
+      const rowIds = layerMap.get(layerNum) ?? [];
+      const rowCount = rowIds.length;
+      const rowWidth = (rowCount - 1) * NODE_GAP_X;
+      const centerX = -rowWidth / 2 + rowWidth / 2; // always 0 (centered)
+      const y = layerNum * LAYER_GAP_Y + LABEL_OFFSET_Y;
+      const theme = themeMap.get(layerNum) ?? `Layer ${layerNum}`;
+
+      return {
+        id: `layer-label-${layerNum}`,
+        type: "layerLabel" as const,
+        position: { x: centerX, y },
+        data: {
+          label: theme,
+          theme,
+          layerNumber: layerNum,
+        },
+        selectable: false,
+        draggable: false,
+      };
+    }
+  );
 
   const edges: Edge[] = skills.flatMap((skill) =>
     (skill.childIds ?? []).map((childId) => ({
@@ -152,7 +218,7 @@ function buildFlow(skills: Skill[]): {
     }))
   );
 
-  return { nodes, edges };
+  return { nodes: [...labelNodes, ...skillNodes], edges };
 }
 
 // ---- Demo data matching the LLM output shape ----
@@ -167,9 +233,16 @@ const demoPlan: LessonPlan = {
     "Build components with React",
     "Connect a frontend to a backend",
   ],
+  layers: [
+    { layer_number: 0, theme: "Foundations" },
+    { layer_number: 1, theme: "Core Web Languages" },
+    { layer_number: 2, theme: "Frameworks & APIs" },
+    { layer_number: 3, theme: "Full-Stack Integration" },
+  ],
   lessons: [
     {
       lesson_number: 1,
+      layer: 0,
       topic: "HTML Basics",
       difficulty: "beginner",
       description:
@@ -182,42 +255,40 @@ const demoPlan: LessonPlan = {
     },
     {
       lesson_number: 2,
+      layer: 1,
       topic: "CSS Fundamentals",
       difficulty: "beginner",
       description:
         "Style your pages with selectors, the box model, flexbox, and responsive design basics.",
-      resources: [
-        "https://web.dev/learn/css",
-      ],
+      resources: ["https://web.dev/learn/css"],
       duration_minutes: 60,
       connections: [1],
     },
     {
       lesson_number: 3,
+      layer: 1,
       topic: "JavaScript Essentials",
       difficulty: "intermediate",
       description:
         "Variables, functions, DOM manipulation, and asynchronous programming with promises.",
-      resources: [
-        "https://javascript.info",
-      ],
+      resources: ["https://javascript.info"],
       duration_minutes: 90,
       connections: [1],
     },
     {
       lesson_number: 4,
+      layer: 2,
       topic: "React Basics",
       difficulty: "intermediate",
       description:
         "Components, JSX, props, state, and the React rendering lifecycle.",
-      resources: [
-        "https://react.dev/learn",
-      ],
+      resources: ["https://react.dev/learn"],
       duration_minutes: 60,
-      connections: [2, 3],
+      connections: [2],
     },
     {
       lesson_number: 5,
+      layer: 2,
       topic: "REST APIs & Fetch",
       difficulty: "advanced",
       description:
@@ -230,20 +301,19 @@ const demoPlan: LessonPlan = {
     },
     {
       lesson_number: 6,
-      topic: "Full-Stack Integration",
+      layer: 3,
+      topic: "Full-Stack App",
       difficulty: "advanced",
       description:
         "Connect your React frontend to a backend API and deploy the full application.",
-      resources: [
-        "https://nextjs.org/docs",
-      ],
+      resources: ["https://nextjs.org/docs"],
       duration_minutes: 60,
-      connections: [4, 5],
+      connections: [4],
     },
   ],
 };
 
-const demoSkills: Skill[] = convertLessonPlan(demoPlan);
+const { skills: demoSkills, layers: demoLayers } = convertLessonPlan(demoPlan);
 
 // ---- Difficulty display helpers ----
 
@@ -263,19 +333,24 @@ const difficultyColor: Record<Difficulty, string> = {
 
 // ---- Component ----
 
-const nodeTypes = { skill: SkillNode };
+const nodeTypes = { skill: SkillNode, layerLabel: LayerLabelNode };
 
 export type SkillTreeFlowProps = {
   skills?: Skill[];
+  layers?: Layer[];
 };
 
-function SkillTreeFlow({ skills = demoSkills }: SkillTreeFlowProps) {
+function SkillTreeFlow({
+  skills = demoSkills,
+  layers = demoLayers,
+}: SkillTreeFlowProps) {
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => buildFlow(skills),
-    [skills]
+    () => buildFlow(skills, layers),
+    [skills, layers]
   );
 
-  const [nodes, setNodes] = useState<Node<SkillNodeData>[]>(initialNodes);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [nodes, setNodes] = useState<Node<any>[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
   const [selectedNode, setSelectedNode] = useState<Node<SkillNodeData> | null>(
     null
@@ -283,9 +358,7 @@ function SkillTreeFlow({ skills = demoSkills }: SkillTreeFlowProps) {
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) =>
-      setNodes(
-        (prev) => applyNodeChanges(changes, prev) as Node<SkillNodeData>[]
-      ),
+      setNodes((prev) => applyNodeChanges(changes, prev)),
     []
   );
   const onEdgesChange: OnEdgesChange = useCallback(
@@ -298,6 +371,8 @@ function SkillTreeFlow({ skills = demoSkills }: SkillTreeFlowProps) {
   );
 
   const onNodeClick: NodeMouseHandler = useCallback((_event, node) => {
+    // Ignore clicks on layer label nodes
+    if (node.type === "layerLabel") return;
     setSelectedNode(node as Node<SkillNodeData>);
   }, []);
 
@@ -331,6 +406,7 @@ function SkillTreeFlow({ skills = demoSkills }: SkillTreeFlowProps) {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
+        nodesDraggable={false}
         fitView
       >
         <Background />
