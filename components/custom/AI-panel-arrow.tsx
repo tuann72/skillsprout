@@ -16,18 +16,18 @@ export function AIPanelArrow() {
   };
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-center gap-2 w-full px-4 sm:px-0">
       <AnimatePresence>
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="flex gap-2"
+            className="flex gap-2 w-full sm:w-auto"
           >
             <Input
               placeholder="Modify my task ..."
-              className="w-96 h-12 bg-muted border-2 border-gray-400"
+              className="flex-1 sm:w-96 h-12 bg-muted border-2 border-gray-400"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               autoFocus
@@ -35,7 +35,7 @@ export function AIPanelArrow() {
             <Button
               onClick={handleSubmit}
               size="icon"
-              className="h-12 w-16 cursor-pointer"
+              className="h-12 w-16 shrink-0 cursor-pointer"
             >
               Submit
             </Button>
