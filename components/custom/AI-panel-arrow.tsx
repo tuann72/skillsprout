@@ -3,7 +3,7 @@ import { ChevronUp } from "lucide-react";
 
 export function AIPanelArrow() {
   return (
-    <Button>
+    <Button className="cursor-pointer">
       <ChevronUp className="h-4 w-4" />
     </Button>
   );
