@@ -19,7 +19,7 @@ const lessonPlanSchema: Anthropic.Tool = {
     " 5. Difficulty should generally increase across layers, not within a layer." +
     " 6. Each lesson needs unique, publicly accessible online resources (articles, videos, exercises as URLs). DO NOT REPEAT RESOURCES." +
     " 7. Take into account the user's daily time commitment when sizing lesson durations." +
-    " FOR NOW RETURN EXACTLY 30 LESSONS spread across 6-7 layers." +
+    " FOR NOW RETURN EXACTLY 3 LESSONS spread across 3 layers." +
     " Return the result using this tool.",
   input_schema: {
     type: "object" as const,
@@ -151,7 +151,7 @@ export async function POST(request: Request) {
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-5-20250929",
-      max_tokens: 3072,
+      max_tokens: 8192,
       tools: [lessonPlanSchema],
       tool_choice: { type: "tool", name: "generate_lesson_plan" },
       messages: [{ role: "user", content: userPrompt }],
