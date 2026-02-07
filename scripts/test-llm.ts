@@ -29,7 +29,7 @@ const lessonPlanSchema: Anthropic.Tool = {
    "Generate a structured lesson plan for learning a new skill based on the user's current level and goal level." + 
    "The lessons should increase" +
    " in complexity, going from beginner, intermediate, advanced, to expert. Provide enough"  +
-   " lessons to master the skilland resources per lesson. Return the result using this tool." +
+   " lessons to master the skill and resources per lesson. Return the result using this tool." +
    " There can be branches down different paths of learning, so make sure to include connections between lessons. ",
  input_schema: {
    type: "object" as const,
@@ -131,6 +131,3 @@ async function main() {
    console.log(JSON.stringify(response.content, null, 2));
  }
 }
-
-
-main().catch(console.error);
