@@ -8,11 +8,15 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Home, Search, Settings } from "lucide-react";
+import { Home } from "lucide-react";
 
-export function CalendarSideBar() {
+interface CalendarSideBarProps {
+  side?: "left" | "right";
+}
+
+export function CalendarSideBar({ side = "left" }: CalendarSideBarProps) {
   return (
-    <Sidebar>
+    <Sidebar side={side}>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Application</SidebarGroupLabel>
