@@ -86,16 +86,19 @@ export function AIPanelArrow({ onModify }: AIPanelArrowProps) {
           </motion.div>
         )}
       </AnimatePresence>
-      <button
+      <Button
+        size="icon"
+        variant="outline"
+        className="h-10 w-10 rounded-full bg-white shadow-md cursor-pointer"
         onClick={() => setIsOpen(!isOpen)}
-        className="rounded p-2 hover:bg-gray-200 cursor-pointer"
+        title="Modify with AI"
       >
         {isOpen ? (
-          <ChevronDown className="h-6 w-6 stroke-[3]" />
+          <ChevronDown className="h-5 w-5" />
         ) : (
-          <ChevronUp className="h-6 w-6 stroke-[3]" />
+          <ChevronUp className="h-5 w-5" />
         )}
-      </button>
+      </Button>
     </div>
   );
 }

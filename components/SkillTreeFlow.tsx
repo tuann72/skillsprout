@@ -23,6 +23,8 @@ import { SkillNode } from "./nodes/SkillNode";
 import type { SkillNodeData } from "./nodes/SkillNode";
 import { LayerLabelNode } from "./nodes/LayerLabelNode";
 import type { LayerLabelData } from "./nodes/LayerLabelNode";
+import { NodeFormDialog } from "./NodeFormDialog";
+import type { NodeFormValues } from "./NodeFormDialog";
 import type { LessonPlan, Difficulty, Layer } from "@/types/lesson-plan";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -320,6 +322,19 @@ export type SkillTreeFlowProps = {
   layers?: Layer[];
   planId?: string | null;
   lessonDbIds?: Record<number, string>;
+  createDialogOpen?: boolean;
+  onCreateDialogChange?: (open: boolean) => void;
+  onNodeCreated?: (lesson: {
+    lessonNumber: number;
+    lessonDbId: string;
+    topic: string;
+    description: string;
+    difficulty: Difficulty;
+    durationMinutes: number;
+    resources: string[];
+    layer: number;
+    connections: number[];
+  }) => void;
 };
 
 function SkillTreeFlow({
@@ -327,6 +342,9 @@ function SkillTreeFlow({
   layers = demoLayers,
   planId,
   lessonDbIds,
+  createDialogOpen = false,
+  onCreateDialogChange,
+  onNodeCreated,
 }: SkillTreeFlowProps) {
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
     () => buildFlow(skills, layers),
@@ -339,6 +357,7 @@ function SkillTreeFlow({
   const [selectedNode, setSelectedNode] = useState<Node<SkillNodeData> | null>(
     null
   );
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   useEffect(() => {
     const { nodes: newNodes, edges: newEdges } = buildFlow(skills, layers);
@@ -418,6 +437,230 @@ function SkillTreeFlow({
       }
     }
   }, [selectedNode, planId, lessonDbIds]);
+
+  /** Modify the selected node's fields. */
+  const handleModifyNode = useCallback(
+    async (values: NodeFormValues) => {
+      if (!selectedNode) return;
+      const id = selectedNode.id;
+      const prevData = selectedNode.data;
+
+      const updatedData: SkillNodeData = {
+        ...prevData,
+        label: values.label,
+        description: values.description,
+        difficulty: values.difficulty,
+        durationMinutes: values.durationMinutes,
+        resources: values.resources,
+      };
+
+      // Optimistic update
+      setNodes((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, data: updatedData } : n))
+      );
+      setSelectedNode((prev) =>
+        prev ? { ...prev, data: updatedData } : null
+      );
+      setEditDialogOpen(false);
+
+      // Persist to DB
+      if (planId && lessonDbIds) {
+        const lessonNumber = selectedNode.data.lessonNumber;
+        const lessonDbId =
+          lessonNumber != null ? lessonDbIds[lessonNumber] : undefined;
+        if (lessonDbId) {
+          try {
+            const res = await fetch(`/api/lessons/${lessonDbId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                topic: values.label,
+                description: values.description,
+                difficulty: values.difficulty,
+                duration_minutes: values.durationMinutes,
+                resources: values.resources,
+              }),
+            });
+            if (!res.ok) throw new Error("Failed to save");
+          } catch {
+            // Revert on failure
+            setNodes((prev) =>
+              prev.map((n) => (n.id === id ? { ...n, data: prevData } : n))
+            );
+            setSelectedNode((prev) =>
+              prev ? { ...prev, data: prevData } : null
+            );
+          }
+        }
+      }
+    },
+    [selectedNode, planId, lessonDbIds]
+  );
+
+  /** Delete the selected node and orphan its children (remove edges). */
+  const handleDeleteNode = useCallback(async () => {
+    if (!selectedNode) return;
+    const id = selectedNode.id;
+    const prevNodes = nodes;
+    const prevEdges = edges;
+
+    // Optimistic update: remove node and its edges
+    setNodes((prev) => prev.filter((n) => n.id !== id));
+    setEdges((prev) =>
+      prev.filter((e) => e.source !== id && e.target !== id)
+    );
+    setSelectedNode(null);
+
+    // Persist to DB
+    if (planId && lessonDbIds) {
+      const lessonNumber = selectedNode.data.lessonNumber;
+      const lessonDbId =
+        lessonNumber != null ? lessonDbIds[lessonNumber] : undefined;
+      if (lessonDbId) {
+        try {
+          const res = await fetch(`/api/lessons/${lessonDbId}`, {
+            method: "DELETE",
+          });
+          if (!res.ok) throw new Error("Failed to delete");
+        } catch {
+          // Revert on failure
+          setNodes(prevNodes);
+          setEdges(prevEdges);
+        }
+      }
+    }
+  }, [selectedNode, nodes, edges, planId, lessonDbIds]);
+
+  /** Create a new node and persist to DB. */
+  const handleCreateNode = useCallback(
+    async (values: NodeFormValues) => {
+      const newLayer = values.layer ?? 0;
+      const newConnections = values.connections ?? [];
+
+      // Compute next lesson_number from current skill nodes
+      const skillNodes = nodes.filter((n) => n.type === "skill");
+      const maxNum = skillNodes.reduce(
+        (max, n) => Math.max(max, n.data?.lessonNumber ?? 0),
+        0
+      );
+      const newLessonNumber = maxNum + 1;
+      const newId = String(newLessonNumber);
+
+      // Build the new skill node
+      const newSkill: Skill = {
+        id: newId,
+        label: values.label,
+        description: values.description,
+        difficulty: values.difficulty,
+        resources: values.resources,
+        durationMinutes: values.durationMinutes,
+        lessonNumber: newLessonNumber,
+        layer: newLayer,
+        parentIds: newConnections.map(String),
+        childIds: [],
+      };
+
+      // Rebuild the full skills array so dagre can re-layout
+      const currentSkills: Skill[] = skillNodes.map((n) => ({
+        id: n.id,
+        label: n.data.label,
+        description: n.data.description,
+        difficulty: n.data.difficulty,
+        resources: n.data.resources,
+        durationMinutes: n.data.durationMinutes,
+        lessonNumber: n.data.lessonNumber,
+        layer: n.data.layer,
+        parentIds: n.data.parentIds,
+        childIds: [
+          ...(n.data.childIds ?? []),
+          // If this existing node is a parent of the new node, add the new node as child
+          ...(newConnections.includes(n.data.lessonNumber) ? [newId] : []),
+        ],
+        completed: n.data.completed,
+      }));
+      currentSkills.push(newSkill);
+
+      const { nodes: newNodes, edges: newEdges } = buildFlow(currentSkills, layers);
+      // Preserve completion state
+      const completionMap = new Map(
+        skillNodes.map((n) => [n.id, n.data.completed])
+      );
+      const finalNodes = newNodes.map((n) =>
+        n.type === "skill" && completionMap.has(n.id)
+          ? { ...n, data: { ...n.data, completed: completionMap.get(n.id) } }
+          : n
+      );
+
+      setNodes(finalNodes);
+      setEdges(newEdges);
+      onCreateDialogChange?.(false);
+
+      // Persist to DB
+      if (planId) {
+        try {
+          const res = await fetch("/api/lessons", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              plan_id: planId,
+              topic: values.label,
+              description: values.description,
+              difficulty: values.difficulty,
+              duration_minutes: values.durationMinutes,
+              resources: values.resources,
+              layer: newLayer,
+              connections: newConnections,
+            }),
+          });
+          if (!res.ok) throw new Error("Failed to create lesson");
+          const data = await res.json();
+          onNodeCreated?.({
+            lessonNumber: data.lesson_number,
+            lessonDbId: data.lesson_id,
+            topic: values.label,
+            description: values.description,
+            difficulty: values.difficulty,
+            durationMinutes: values.durationMinutes,
+            resources: values.resources,
+            layer: newLayer,
+            connections: newConnections,
+          });
+        } catch {
+          // Revert: rebuild without the new node
+          const { nodes: revertNodes, edges: revertEdges } = buildFlow(
+            skillNodes.map((n) => ({
+              id: n.id,
+              label: n.data.label,
+              description: n.data.description,
+              difficulty: n.data.difficulty,
+              resources: n.data.resources,
+              durationMinutes: n.data.durationMinutes,
+              lessonNumber: n.data.lessonNumber,
+              layer: n.data.layer,
+              parentIds: n.data.parentIds,
+              childIds: n.data.childIds,
+              completed: n.data.completed,
+            })),
+            layers
+          );
+          setNodes(revertNodes);
+          setEdges(revertEdges);
+        }
+      }
+    },
+    [nodes, layers, planId, onCreateDialogChange, onNodeCreated]
+  );
+
+  // Build existing lessons list for the create dialog's prerequisites picker
+  const existingLessonsForForm = useMemo(() => {
+    return nodes
+      .filter((n) => n.type === "skill")
+      .map((n) => ({
+        lessonNumber: n.data.lessonNumber as number,
+        topic: n.data.label as string,
+        layer: (n.data.layer as number) ?? 0,
+      }));
+  }, [nodes]);
 
   const progress = useMemo(() => {
     const skillNodes = nodes.filter((n) => n.type === "skill");
@@ -534,17 +777,60 @@ function SkillTreeFlow({
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="flex gap-2 sm:gap-2">
+            <Button
+              variant="destructive"
+              onClick={handleDeleteNode}
+            >
+              Delete
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setEditDialogOpen(true)}
+            >
+              Modify
+            </Button>
             <Button
               variant={d?.completed ? "outline" : "default"}
               onClick={toggleComplete}
-              className="w-full"
             >
-              {d?.completed ? "Mark as incomplete" : "Mark as complete"}
+              {d?.completed ? "Mark incomplete" : "Mark complete"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ---- Modify node form dialog ---- */}
+      <NodeFormDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        mode="modify"
+        initialValues={
+          d
+            ? {
+                label: d.label,
+                description: d.description,
+                difficulty: d.difficulty,
+                durationMinutes: d.durationMinutes,
+                resources: d.resources,
+              }
+            : undefined
+        }
+        onSubmit={handleModifyNode}
+      />
+
+      {/* ---- Create node form dialog ---- */}
+      <NodeFormDialog
+        open={createDialogOpen}
+        onOpenChange={(open) => onCreateDialogChange?.(open)}
+        mode="create"
+        existingLessons={existingLessonsForForm}
+        availableLayers={layers.map((l) => ({
+          layer_number: l.layer_number,
+          theme: l.theme,
+        }))}
+        onSubmit={handleCreateNode}
+      />
     </div>
   );
 }

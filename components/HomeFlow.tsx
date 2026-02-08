@@ -10,7 +10,8 @@ import { useAuth } from "./AuthProvider";
 import { AIPanelArrow } from "@/components/custom/AI-panel-arrow";
 import { HomeButton } from "@/components/custom/NewDraftButton";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import type { LessonPlan, Layer } from "@/types/lesson-plan";
 import { useCalendar } from "@/components/CalendarContext";
@@ -51,6 +52,7 @@ type Step =
 
 export default function HomeFlow() {
   const [step, setStep] = useState<Step>({ kind: "saved-plans" });
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { setLessons, setDailyCommitmentMinutes } = useCalendar();
@@ -224,6 +226,34 @@ export default function HomeFlow() {
     [step, setLessons]
   );
 
+  const handleNodeCreated = useCallback(
+    (lesson: {
+      lessonNumber: number;
+      lessonDbId: string;
+      topic: string;
+      description: string;
+      difficulty: string;
+      durationMinutes: number;
+      resources: string[];
+      layer: number;
+      connections: number[];
+    }) => {
+      if (step.kind !== "tree") return;
+      // Update lessonDbIds with the new lesson
+      setStep((prev) => {
+        if (prev.kind !== "tree") return prev;
+        return {
+          ...prev,
+          lessonDbIds: {
+            ...prev.lessonDbIds,
+            [lesson.lessonNumber]: lesson.lessonDbId,
+          },
+        };
+      });
+    },
+    [step.kind]
+  );
+
   // ---- Auth gate: redirect to login if not signed in ----
   useEffect(() => {
     if (!authLoading && !user) {
@@ -320,12 +350,26 @@ export default function HomeFlow() {
       <div className="fixed bottom-4 left-1/2 z-20 -translate-x-1/2">
         <AIPanelArrow onModify={handleModifyPlan} />
       </div>
+      <div className="fixed bottom-4 right-4 z-20">
+        <Button
+          size="icon"
+          variant="outline"
+          className="h-10 w-10 rounded-full bg-white shadow-md cursor-pointer"
+          onClick={() => setCreateDialogOpen(true)}
+          title="Add node"
+        >
+          <Plus className="h-5 w-5" />
+        </Button>
+      </div>
       <div className="absolute inset-0 z-0" style={{ backgroundColor: "#dde5d4" }}>
         <SkillTreeFlow
           skills={step.skills}
           layers={step.layers}
           planId={step.planId}
           lessonDbIds={step.lessonDbIds}
+          createDialogOpen={createDialogOpen}
+          onCreateDialogChange={setCreateDialogOpen}
+          onNodeCreated={handleNodeCreated}
         />
       </div>
     </div>
