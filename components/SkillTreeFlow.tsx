@@ -661,11 +661,11 @@ function SkillTreeFlow({
     <div className="h-full w-full">
       {/* Progress bar */}
       {progress.total > 0 && (
-        <div className="absolute top-4 left-1/2 z-10 -translate-x-1/2 flex items-center gap-3 bg-white/90 backdrop-blur-sm shadow-md rounded-lg px-4 py-2">
+        <div className="absolute top-4 left-1/2 z-10 -translate-x-1/2 flex items-center gap-2 sm:gap-3 bg-white/90 backdrop-blur-sm shadow-md rounded-lg px-3 sm:px-4 py-2 max-w-[calc(100%-7rem)] sm:max-w-none">
           <Image src={progress.treeImage} alt="Progress tree" width={progress.percentage >= 100 ? 40 : 32} height={progress.percentage >= 100 ? 40 : 32} />
-          <Progress value={progress.percentage} className="w-40 [&>[data-slot=progress-indicator]]:bg-emerald-500" />
-          <span className="text-sm font-medium text-zinc-700 whitespace-nowrap">
-            {progress.completed}/{progress.total} completed
+          <Progress value={progress.percentage} className="w-24 sm:w-40 [&>[data-slot=progress-indicator]]:bg-emerald-500" />
+          <span className="text-xs sm:text-sm font-medium text-zinc-700 whitespace-nowrap">
+            {progress.completed}/{progress.total}
           </span>
         </div>
       )}
