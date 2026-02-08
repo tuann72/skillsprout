@@ -97,6 +97,9 @@ export function LandingForm({ onSubmit }: LandingFormProps) {
                   <SelectItem value="1-month">1 month</SelectItem>
                   <SelectItem value="3-months">3 months</SelectItem>
                   <SelectItem value="6-months">6 months</SelectItem>
+                  <SelectItem value="1-year">1 year</SelectItem>
+                  <SelectItem value="2-years">2 years</SelectItem>
+                  <SelectItem value="3-plus-years">3+ years</SelectItem>
                 </SelectContent>
               </Select>
             </div>
