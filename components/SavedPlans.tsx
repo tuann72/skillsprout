@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Check, Copy, Download, Loader2, Plus, Trash2 } from "lucide-react";
 
 type SavedPlan = {
   id: string;
@@ -33,6 +33,7 @@ export function SavedPlans({ onSelect, onGenerateNew }: SavedPlansProps) {
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SavedPlan | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -72,6 +73,43 @@ export function SavedPlans({ onSelect, onGenerateNew }: SavedPlansProps) {
     }
   }
 
+  async function fetchPlanData(planId: string) {
+    const res = await fetch(`/api/lesson-plans/${planId}`);
+    if (!res.ok) throw new Error("Failed to fetch plan");
+    const data = await res.json();
+    const { title, skill, estimated_minutes, objectives, layers, lessons } =
+      data;
+    return { title, skill, estimated_minutes, objectives, layers, lessons };
+  }
+
+  async function handleExport(planId: string, title: string) {
+    try {
+      const planData = await fetchPlanData(planId);
+      const blob = new Blob([JSON.stringify(planData, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // silently fail
+    }
+  }
+
+  async function handleCopy(planId: string) {
+    try {
+      const planData = await fetchPlanData(planId);
+      await navigator.clipboard.writeText(JSON.stringify(planData, null, 2));
+      setCopiedId(planId);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      // silently fail
+    }
+  }
+
   return (
     <div
       className="flex min-h-screen flex-col items-center p-8"
@@ -81,7 +119,7 @@ export function SavedPlans({ onSelect, onGenerateNew }: SavedPlansProps) {
         <h1 className="mb-6 text-2xl font-bold text-zinc-900">My Plans</h1>
 
         <Button
-          className="mb-6 w-full gap-2 bg-emerald-500 hover:bg-emerald-600"
+          className="mb-6 w-full cursor-pointer gap-2 bg-emerald-500 hover:bg-emerald-600"
           onClick={onGenerateNew}
         >
           <Plus className="h-4 w-4" />
@@ -113,7 +151,7 @@ export function SavedPlans({ onSelect, onGenerateNew }: SavedPlansProps) {
             >
               <button
                 onClick={() => onSelect(plan.id)}
-                className="flex-1 p-4 text-left"
+                className="flex-1 cursor-pointer p-4 text-left"
               >
                 <div className="flex items-start justify-between">
                   <div>
@@ -142,14 +180,36 @@ export function SavedPlans({ onSelect, onGenerateNew }: SavedPlansProps) {
                   </span>
                 </div>
               </button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="mr-2 shrink-0 hover:text-destructive"
-                onClick={() => setDeleteTarget(plan)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <div className="mr-2 flex shrink-0 gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="cursor-pointer hover:text-zinc-700"
+                  onClick={() => handleExport(plan.id, plan.title)}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="cursor-pointer hover:text-zinc-700"
+                  onClick={() => handleCopy(plan.id)}
+                >
+                  {copiedId === plan.id ? (
+                    <Check className="h-4 w-4 text-emerald-500" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="cursor-pointer hover:text-destructive"
+                  onClick={() => setDeleteTarget(plan)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           ))}
         </div>
@@ -172,6 +232,7 @@ export function SavedPlans({ onSelect, onGenerateNew }: SavedPlansProps) {
           <DialogFooter>
             <Button
               variant="outline"
+              className="cursor-pointer"
               onClick={() => setDeleteTarget(null)}
               disabled={deleting}
             >
@@ -179,6 +240,7 @@ export function SavedPlans({ onSelect, onGenerateNew }: SavedPlansProps) {
             </Button>
             <Button
               variant="destructive"
+              className="cursor-pointer"
               onClick={handleDelete}
               disabled={deleting}
             >
