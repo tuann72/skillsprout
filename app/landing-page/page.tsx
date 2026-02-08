@@ -57,7 +57,7 @@ export default function LandingPage() {
             interactive skill trees. From beginner to expert - one branch at a
             time.
           </p>
-          <Link href="/">
+          <Link href="/home">
             <Button size="lg" className="text-base px-8 py-6 cursor-pointer">
               Start Learning
             </Button>

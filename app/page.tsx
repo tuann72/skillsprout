@@ -1,5 +1,5 @@
-import HomeFlow from "@/components/HomeFlow";
+import { redirect } from "next/navigation";
 
-export default function Home() {
-  return <HomeFlow />;
+export default function Page() {
+  redirect("/landing-page");
 }
