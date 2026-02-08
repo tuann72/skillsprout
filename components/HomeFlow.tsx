@@ -9,8 +9,7 @@ import { SavedPlans } from "./SavedPlans";
 import { useAuth } from "./AuthProvider";
 import { AIPanelArrow } from "@/components/custom/AI-panel-arrow";
 import { NewDraftButton } from "@/components/custom/NewDraftButton";
-import { Button } from "@/components/ui/button";
-import { Loader2, FolderOpen } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { LessonPlan, Layer } from "@/types/lesson-plan";
 
@@ -49,7 +48,7 @@ type Step =
   | { kind: "saved-plans" };
 
 export default function HomeFlow() {
-  const [step, setStep] = useState<Step>({ kind: "form" });
+  const [step, setStep] = useState<Step>({ kind: "saved-plans" });
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
@@ -133,7 +132,7 @@ export default function HomeFlow() {
         lessonDbIds: data.lesson_db_ids ?? {},
       });
     } catch {
-      setStep({ kind: "form" });
+      setStep({ kind: "saved-plans" });
     }
   }, []);
 
@@ -146,22 +145,9 @@ export default function HomeFlow() {
   // ---- Form ----
   if (step.kind === "form") {
     return (
-      <div className="relative">
-        <div className="absolute top-4 right-4 z-10">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setStep({ kind: "saved-plans" })}
-            className="gap-2"
-          >
-            <FolderOpen className="h-4 w-4" />
-            My Plans
-          </Button>
-        </div>
-        <LandingForm
-          onSubmit={(data) => setStep({ kind: "level", formData: data })}
-        />
-      </div>
+      <LandingForm
+        onSubmit={(data) => setStep({ kind: "level", formData: data })}
+      />
     );
   }
 
@@ -170,7 +156,7 @@ export default function HomeFlow() {
     return (
       <SavedPlans
         onSelect={loadSavedPlan}
-        onBack={() => setStep({ kind: "form" })}
+        onGenerateNew={() => setStep({ kind: "form" })}
       />
     );
   }
@@ -181,7 +167,7 @@ export default function HomeFlow() {
       <LevelSelect
         skillName={step.formData.skillName}
         onSelect={(level) => generatePlan(step.formData, level)}
-        onBack={() => setStep({ kind: "form" })}
+        onBack={() => setStep({ kind: "saved-plans" })}
       />
     );
   }
@@ -220,7 +206,7 @@ export default function HomeFlow() {
           </button>
           <button
             className="text-sm font-medium text-muted-foreground underline underline-offset-2"
-            onClick={() => setStep({ kind: "form" })}
+            onClick={() => setStep({ kind: "saved-plans" })}
           >
             Start over
           </button>
@@ -233,7 +219,7 @@ export default function HomeFlow() {
   return (
     <div className="relative h-screen w-screen">
       <div className="fixed top-16 right-4 z-20">
-        <NewDraftButton onClick={() => setStep({ kind: "form" })} />
+        <NewDraftButton onClick={() => setStep({ kind: "saved-plans" })} />
       </div>
       <div className="fixed bottom-4 left-1/2 z-20 -translate-x-1/2">
         <AIPanelArrow />
