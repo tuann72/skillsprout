@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { LandingForm, type LandingFormData } from "./LandingForm";
 import { LevelSelect, type SkillLevel } from "./LevelSelect";
 import SkillTreeFlow from "./SkillTreeFlow";
@@ -137,8 +137,13 @@ export default function HomeFlow() {
   }, []);
 
   // ---- Auth gate: redirect to login if not signed in ----
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/auth/login");
+    }
+  }, [authLoading, user, router]);
+
   if (!authLoading && !user) {
-    router.push("/auth/login");
     return null;
   }
 

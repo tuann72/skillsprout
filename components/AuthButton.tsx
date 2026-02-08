@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation";
 export function AuthButton() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const supabase = createClient();
 
   if (loading) return null;
 
@@ -36,6 +35,7 @@ export function AuthButton() {
         variant="outline"
         size="sm"
         onClick={async () => {
+          const supabase = createClient();
           await supabase.auth.signOut();
           router.push("/");
         }}
