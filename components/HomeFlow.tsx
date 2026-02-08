@@ -8,7 +8,8 @@ import { convertLessonPlan, type Skill } from "./SkillTreeFlow";
 import { SavedPlans } from "./SavedPlans";
 import { useAuth } from "./AuthProvider";
 import { AIPanelArrow } from "@/components/custom/AI-panel-arrow";
-import { NewDraftButton } from "@/components/custom/NewDraftButton";
+import { HomeButton } from "@/components/custom/NewDraftButton";
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { LessonPlan, Layer } from "@/types/lesson-plan";
@@ -53,6 +54,15 @@ export default function HomeFlow() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { setLessons, setDailyCommitmentMinutes } = useCalendar();
+  const { setOpen, setOpenMobile } = useSidebar();
+
+  // Collapse sidebar when navigating to the homepage
+  useEffect(() => {
+    if (step.kind === "saved-plans") {
+      setOpen(false);
+      setOpenMobile(false);
+    }
+  }, [step.kind, setOpen, setOpenMobile]);
 
   const generatePlan = useCallback(
     async (formData: LandingFormData, level: SkillLevel) => {
@@ -300,8 +310,11 @@ export default function HomeFlow() {
   // ---- Tree ----
   return (
     <div className="relative h-screen w-screen">
+      <div className="absolute top-4 left-4 z-10">
+        <SidebarTrigger className="cursor-pointer bg-white" />
+      </div>
       <div className="fixed top-16 right-4 z-20">
-        <NewDraftButton onClick={() => { setLessons([]); setStep({ kind: "saved-plans" }); }} />
+        <HomeButton onClick={() => { setLessons([]); setStep({ kind: "saved-plans" }); }} />
       </div>
       <div className="fixed bottom-4 left-1/2 z-20 -translate-x-1/2">
         <AIPanelArrow onModify={handleModifyPlan} />

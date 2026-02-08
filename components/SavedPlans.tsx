@@ -105,10 +105,11 @@ export function SavedPlans({ onSelect, onGenerateNew }: SavedPlansProps) {
         )}
 
         <div className="space-y-3">
-          {plans.map((plan) => (
+          {plans.map((plan, index) => (
             <div
               key={plan.id}
-              className="flex items-center gap-2 rounded-lg bg-white shadow-sm transition hover:shadow-md"
+              className="flex items-center gap-2 rounded-lg bg-white shadow-sm transition hover:shadow-md animate-fade-in"
+              style={{ animationDelay: `${index * 100}ms` }}
             >
               <button
                 onClick={() => onSelect(plan.id)}

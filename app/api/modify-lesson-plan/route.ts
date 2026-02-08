@@ -65,7 +65,7 @@ export async function POST(request: Request) {
 
     if (user && planId) {
       // Update the lesson plan row
-      await supabase
+      const { error: planUpdateError } = await supabase
         .from("lesson_plans")
         .update({
           title: modifiedPlan.title,
@@ -75,6 +75,14 @@ export async function POST(request: Request) {
           raw_plan: modifiedPlan,
         })
         .eq("id", planId);
+
+      if (planUpdateError) {
+        console.error("[modify-api] lesson_plans update failed:", planUpdateError);
+        return NextResponse.json(
+          { error: "Failed to update lesson plan in database" },
+          { status: 500 }
+        );
+      }
 
       // Fetch existing lessons to match by lesson_number + topic
       const { data: existingLessons } = await supabase
@@ -95,10 +103,13 @@ export async function POST(request: Request) {
         (l) => !newLessonKeys.has(`${l.lesson_number}:${l.topic}`)
       );
       if (toDelete.length > 0) {
-        await supabase
+        const { error: deleteError } = await supabase
           .from("lessons")
           .delete()
           .in("id", toDelete.map((l) => l.id));
+        if (deleteError) {
+          console.error("[modify-api] lessons delete failed:", deleteError);
+        }
       }
 
       // Upsert lessons: update matched, insert new
@@ -108,7 +119,7 @@ export async function POST(request: Request) {
 
         if (existing) {
           // Update in-place (preserves UUID → completion survives)
-          await supabase
+          const { error: lessonUpdateError } = await supabase
             .from("lessons")
             .update({
               layer: lesson.layer,
@@ -119,10 +130,13 @@ export async function POST(request: Request) {
               connections: lesson.connections,
             })
             .eq("id", existing.id);
+          if (lessonUpdateError) {
+            console.error("[modify-api] lesson update failed:", lessonUpdateError);
+          }
           lessonDbIds[lesson.lesson_number] = existing.id;
         } else {
           // Insert new
-          const { data: newRow } = await supabase
+          const { data: newRow, error: insertError } = await supabase
             .from("lessons")
             .insert({
               lesson_plan_id: planId,
@@ -137,6 +151,9 @@ export async function POST(request: Request) {
             })
             .select("id")
             .single();
+          if (insertError) {
+            console.error("[modify-api] lesson insert failed:", insertError);
+          }
           if (newRow) {
             lessonDbIds[lesson.lesson_number] = newRow.id;
           }
@@ -144,14 +161,20 @@ export async function POST(request: Request) {
       }
 
       // Delete old layers and re-insert
-      await supabase.from("layers").delete().eq("lesson_plan_id", planId);
-      await supabase.from("layers").insert(
+      const { error: layerDeleteError } = await supabase.from("layers").delete().eq("lesson_plan_id", planId);
+      if (layerDeleteError) {
+        console.error("[modify-api] layers delete failed:", layerDeleteError);
+      }
+      const { error: layerInsertError } = await supabase.from("layers").insert(
         modifiedPlan.layers.map((l) => ({
           lesson_plan_id: planId,
           layer_number: l.layer_number,
           theme: l.theme,
         }))
       );
+      if (layerInsertError) {
+        console.error("[modify-api] layers insert failed:", layerInsertError);
+      }
 
       // Fetch completions for the surviving lessons
       const lessonIds = Object.values(lessonDbIds);

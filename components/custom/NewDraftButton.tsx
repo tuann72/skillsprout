@@ -1,14 +1,19 @@
 import { Button } from "@/components/ui/button";
-import { FilePlus } from "lucide-react";
+import { Home } from "lucide-react";
 
-type NewDraftButtonProps = {
+type HomeButtonProps = {
   onClick?: () => void;
 };
 
-export function NewDraftButton({ onClick }: NewDraftButtonProps) {
+export function HomeButton({ onClick }: HomeButtonProps) {
   return (
-    <Button className="cursor-pointer" onClick={onClick}>
-      <FilePlus className="h-4 w-4" />
+    <Button
+      variant="outline"
+      size="icon"
+      className="cursor-pointer bg-white hover:bg-zinc-100"
+      onClick={onClick}
+    >
+      <Home className="h-4 w-4" />
     </Button>
   );
 }

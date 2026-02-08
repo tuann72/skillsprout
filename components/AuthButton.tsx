@@ -33,16 +33,15 @@ export function AuthButton() {
       </span>
       <Button
         variant="outline"
-        size="sm"
+        size="icon"
+        className="cursor-pointer"
         onClick={async () => {
           const supabase = createClient();
           await supabase.auth.signOut();
           router.push("/");
         }}
-        className="gap-2"
       >
         <LogOut className="h-4 w-4" />
-        Sign Out
       </Button>
     </div>
   );

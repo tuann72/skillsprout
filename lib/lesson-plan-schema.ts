@@ -13,7 +13,7 @@ export const lessonPlanSchema: Anthropic.Tool = {
     " 5. Difficulty should generally increase across layers, not within a layer." +
     " 6. Each lesson needs unique, publicly accessible online resources (articles, videos, exercises as URLs). DO NOT REPEAT RESOURCES." +
     " 7. Take into account the user's daily time commitment when sizing lesson durations." +
-    " FOR NOW RETURN EXACTLY 3 LESSONS spread across 3 layers." +
+    " FOR NOW RETURN EXACTLY 10 LESSONS spread across 4 layers." +
     " Return the result using this tool.",
   input_schema: {
     type: "object" as const,

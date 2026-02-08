@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import confetti from "canvas-confetti";
 import {
   ReactFlow,
   Background,
@@ -94,8 +96,11 @@ export function convertLessonPlan(plan: LessonPlan): ConvertedPlan {
 
 // ---- Helpers: convert a flat skill list → React Flow nodes + edges ----
 
-const NODE_GAP_X = 220;
-const LAYER_GAP_Y = 200; // vertical space between layers (includes label)
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const dagre = require("@dagrejs/dagre");
+
+const NODE_WIDTH = 180;
+const NODE_HEIGHT = 60;
 const LABEL_OFFSET_Y = -40; // label sits above the skill nodes in each layer
 
 function buildFlow(
@@ -105,71 +110,42 @@ function buildFlow(
   nodes: (Node<SkillNodeData> | Node<LayerLabelData>)[];
   edges: Edge[];
 } {
-  const hasLayers = skills.some((s) => s.layer != null);
-
-  // Group skills by layer (use explicit layer if available, otherwise BFS)
-  const layerMap = new Map<number, string[]>();
-
-  if (hasLayers) {
-    for (const skill of skills) {
-      const l = skill.layer ?? 0;
-      const row = layerMap.get(l) ?? [];
-      row.push(skill.id);
-      layerMap.set(l, row);
-    }
-  } else {
-    // Fallback: BFS from roots
-    const byId = new Map(skills.map((s) => [s.id, s]));
-    const roots = skills.filter(
-      (s) =>
-        !s.parentIds?.length || s.parentIds.every((pid) => !byId.has(pid))
-    );
-    const visited = new Set<string>();
-    const queue: { id: string; depth: number }[] = roots.map((r) => ({
-      id: r.id,
-      depth: 0,
-    }));
-
-    while (queue.length) {
-      const { id, depth } = queue.shift()!;
-      if (visited.has(id)) continue;
-      visited.add(id);
-
-      const row = layerMap.get(depth) ?? [];
-      row.push(id);
-      layerMap.set(depth, row);
-
-      const skill = byId.get(id);
-      skill?.childIds?.forEach((cid) => {
-        if (!visited.has(cid)) queue.push({ id: cid, depth: depth + 1 });
-      });
-    }
-  }
-
   // Build layer theme lookup
   const themeMap = new Map<number, string>();
   for (const layer of layers) {
     themeMap.set(layer.layer_number, layer.theme);
   }
 
-  // Build position lookup from layer map
-  const positions = new Map<string, { depth: number; index: number }>();
-  for (const [depth, ids] of layerMap) {
-    ids.forEach((id, index) => positions.set(id, { depth, index }));
+  // Build edges first (needed for dagre)
+  const edges: Edge[] = skills.flatMap((skill) =>
+    (skill.childIds ?? []).map((childId) => ({
+      id: `e-${skill.id}-${childId}`,
+      source: skill.id,
+      target: childId,
+    }))
+  );
+
+  // Set up dagre graph for optimized node placement
+  const g = new dagre.graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: 120, align: "UL" });
+
+  for (const skill of skills) {
+    g.setNode(skill.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  }
+  for (const edge of edges) {
+    g.setEdge(edge.source, edge.target);
   }
 
-  // Skill nodes
-  const skillNodes: Node<SkillNodeData>[] = skills.map((skill) => {
-    const pos = positions.get(skill.id) ?? { depth: 0, index: 0 };
-    const rowCount = layerMap.get(pos.depth)?.length ?? 1;
-    const rowWidth = (rowCount - 1) * NODE_GAP_X;
-    const x = pos.index * NODE_GAP_X - rowWidth / 2;
-    const y = pos.depth * LAYER_GAP_Y;
+  dagre.layout(g);
 
+  // Build skill nodes using dagre-computed positions
+  const skillNodes: Node<SkillNodeData>[] = skills.map((skill) => {
+    const pos = g.node(skill.id);
     return {
       id: skill.id,
       type: "skill" as const,
-      position: { x, y },
+      position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
       data: {
         label: skill.label,
         description: skill.description,
@@ -185,39 +161,36 @@ function buildFlow(
     };
   });
 
+  // Compute layer Y positions from dagre output (average Y per layer)
+  const layerYMap = new Map<number, number[]>();
+  for (const skill of skills) {
+    const l = skill.layer ?? 0;
+    const pos = g.node(skill.id);
+    const ys = layerYMap.get(l) ?? [];
+    ys.push(pos.y);
+    layerYMap.set(l, ys);
+  }
+
   // Layer label nodes — one per layer, centered above the row
-  const sortedLayers = [...layerMap.keys()].sort((a, b) => a - b);
-  const labelNodes: Node<LayerLabelData>[] = sortedLayers.map(
-    (layerNum) => {
-      const rowIds = layerMap.get(layerNum) ?? [];
-      const rowCount = rowIds.length;
-      const rowWidth = (rowCount - 1) * NODE_GAP_X;
-      const centerX = -rowWidth / 2 + rowWidth / 2; // always 0 (centered)
-      const y = layerNum * LAYER_GAP_Y + LABEL_OFFSET_Y;
-      const theme = themeMap.get(layerNum) ?? `Layer ${layerNum}`;
+  const sortedLayers = [...layerYMap.keys()].sort((a, b) => a - b);
+  const labelNodes: Node<LayerLabelData>[] = sortedLayers.map((layerNum) => {
+    const ys = layerYMap.get(layerNum) ?? [0];
+    const minY = Math.min(...ys);
+    const theme = themeMap.get(layerNum) ?? `Layer ${layerNum}`;
 
-      return {
-        id: `layer-label-${layerNum}`,
-        type: "layerLabel" as const,
-        position: { x: centerX, y },
-        data: {
-          label: theme,
-          theme,
-          layerNumber: layerNum,
-        },
-        selectable: false,
-        draggable: false,
-      };
-    }
-  );
-
-  const edges: Edge[] = skills.flatMap((skill) =>
-    (skill.childIds ?? []).map((childId) => ({
-      id: `e-${skill.id}-${childId}`,
-      source: skill.id,
-      target: childId,
-    }))
-  );
+    return {
+      id: `layer-label-${layerNum}`,
+      type: "layerLabel" as const,
+      position: { x: 0, y: minY - NODE_HEIGHT / 2 + LABEL_OFFSET_Y },
+      data: {
+        label: theme,
+        theme,
+        layerNumber: layerNum,
+      },
+      selectable: false,
+      draggable: false,
+    };
+  });
 
   return { nodes: [...labelNodes, ...skillNodes], edges };
 }
@@ -361,6 +334,13 @@ function SkillTreeFlow({
     null
   );
 
+  useEffect(() => {
+    const { nodes: newNodes, edges: newEdges } = buildFlow(skills, layers);
+    setNodes(newNodes);
+    setEdges(newEdges);
+    setSelectedNode(null);
+  }, [skills, layers]);
+
   const onNodesChange: OnNodesChange = useCallback(
     (changes) =>
       setNodes((prev) => applyNodeChanges(changes, prev)),
@@ -438,8 +418,32 @@ function SkillTreeFlow({
     const total = skillNodes.length;
     const completed = skillNodes.filter((n) => n.data?.completed).length;
     const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
-    return { completed, total, percentage };
+    const treeImage =
+      percentage >= 100
+        ? "/t5.png"
+        : percentage >= 75
+          ? "/t4.png"
+          : percentage >= 50
+            ? "/t3.png"
+            : percentage >= 25
+              ? "/t2.png"
+              : "/t1.png";
+    return { completed, total, percentage, treeImage };
   }, [nodes]);
+
+  const hasFiredConfetti = useRef(false);
+  useEffect(() => {
+    if (progress.percentage >= 100 && !hasFiredConfetti.current) {
+      hasFiredConfetti.current = true;
+      confetti({
+        particleCount: 150,
+        spread: 80,
+        origin: { y: 1 },
+      });
+    } else if (progress.percentage < 100) {
+      hasFiredConfetti.current = false;
+    }
+  }, [progress.percentage]);
 
   const d = selectedNode?.data;
 
@@ -448,7 +452,8 @@ function SkillTreeFlow({
       {/* Progress bar */}
       {progress.total > 0 && (
         <div className="absolute top-4 left-1/2 z-10 -translate-x-1/2 flex items-center gap-3 bg-white/90 backdrop-blur-sm shadow-md rounded-lg px-4 py-2">
-          <Progress value={progress.percentage} className="w-40" />
+          <Image src={progress.treeImage} alt="Progress tree" width={progress.percentage >= 100 ? 40 : 32} height={progress.percentage >= 100 ? 40 : 32} />
+          <Progress value={progress.percentage} className="w-40 [&>[data-slot=progress-indicator]]:bg-emerald-500" />
           <span className="text-sm font-medium text-zinc-700 whitespace-nowrap">
             {progress.completed}/{progress.total} completed
           </span>
