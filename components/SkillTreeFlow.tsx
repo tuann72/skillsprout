@@ -21,8 +21,6 @@ import "@xyflow/react/dist/style.css";
 
 import { SkillNode } from "./nodes/SkillNode";
 import type { SkillNodeData } from "./nodes/SkillNode";
-import { LayerLabelNode } from "./nodes/LayerLabelNode";
-import type { LayerLabelData } from "./nodes/LayerLabelNode";
 import { NodeFormDialog } from "./NodeFormDialog";
 import type { NodeFormValues } from "./NodeFormDialog";
 import type { LessonPlan, Difficulty, Layer } from "@/types/lesson-plan";
@@ -103,21 +101,12 @@ const dagre = require("@dagrejs/dagre");
 
 const NODE_WIDTH = 180;
 const NODE_HEIGHT = 60;
-const LABEL_OFFSET_Y = -40; // label sits above the skill nodes in each layer
-
 function buildFlow(
   skills: Skill[],
-  layers: Layer[] = []
 ): {
-  nodes: (Node<SkillNodeData> | Node<LayerLabelData>)[];
+  nodes: Node<SkillNodeData>[];
   edges: Edge[];
 } {
-  // Build layer theme lookup
-  const themeMap = new Map<number, string>();
-  for (const layer of layers) {
-    themeMap.set(layer.layer_number, layer.theme);
-  }
-
   // Build edges first (needed for dagre)
   const edges: Edge[] = skills.flatMap((skill) =>
     (skill.childIds ?? []).map((childId) => ({
@@ -146,7 +135,7 @@ function buildFlow(
   const uniqueLayers = [...new Set(skills.map((s) => s.layer ?? 0))].sort((a, b) => a - b);
   const layerIndex = new Map(uniqueLayers.map((l, i) => [l, i]));
 
-  const skillNodes: Node<SkillNodeData>[] = skills.map((skill) => {
+  const nodes: Node<SkillNodeData>[] = skills.map((skill) => {
     const pos = g.node(skill.id);
     return {
       id: skill.id,
@@ -163,44 +152,12 @@ function buildFlow(
         parentIds: skill.parentIds,
         childIds: skill.childIds,
         completed: skill.completed ?? false,
-        animationDelay: (layerIndex.get(skill.layer ?? 0) ?? 0) * 150,
+        animationDelay: (layerIndex.get(skill.layer ?? 0) ?? 0) * 250,
       },
     };
   });
 
-  // Compute layer Y positions from dagre output (average Y per layer)
-  const layerYMap = new Map<number, number[]>();
-  for (const skill of skills) {
-    const l = skill.layer ?? 0;
-    const pos = g.node(skill.id);
-    const ys = layerYMap.get(l) ?? [];
-    ys.push(pos.y);
-    layerYMap.set(l, ys);
-  }
-
-  // Layer label nodes — one per layer, centered above the row
-  const sortedLayers = [...layerYMap.keys()].sort((a, b) => a - b);
-  const labelNodes: Node<LayerLabelData>[] = sortedLayers.map((layerNum) => {
-    const ys = layerYMap.get(layerNum) ?? [0];
-    const minY = Math.min(...ys);
-    const theme = themeMap.get(layerNum) ?? `Layer ${layerNum}`;
-
-    return {
-      id: `layer-label-${layerNum}`,
-      type: "layerLabel" as const,
-      position: { x: 0, y: minY - NODE_HEIGHT / 2 + LABEL_OFFSET_Y },
-      data: {
-        label: theme,
-        theme,
-        layerNumber: layerNum,
-        animationDelay: (layerIndex.get(layerNum) ?? 0) * 150,
-      },
-      selectable: false,
-      draggable: false,
-    };
-  });
-
-  return { nodes: [...labelNodes, ...skillNodes], edges };
+  return { nodes, edges };
 }
 
 // ---- Demo data matching the LLM output shape ----
@@ -315,7 +272,14 @@ const difficultyColor: Record<Difficulty, string> = {
 
 // ---- Component ----
 
-const nodeTypes = { skill: SkillNode, layerLabel: LayerLabelNode };
+const nodeTypes = { skill: SkillNode };
+
+const defaultEdgeOptions = {
+  style: {
+    stroke: "#8B6914",
+    strokeWidth: 2.5,
+  },
+};
 
 export type SkillTreeFlowProps = {
   skills?: Skill[];
@@ -347,8 +311,8 @@ function SkillTreeFlow({
   onNodeCreated,
 }: SkillTreeFlowProps) {
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => buildFlow(skills, layers),
-    [skills, layers]
+    () => buildFlow(skills),
+    [skills]
   );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -360,11 +324,11 @@ function SkillTreeFlow({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   useEffect(() => {
-    const { nodes: newNodes, edges: newEdges } = buildFlow(skills, layers);
+    const { nodes: newNodes, edges: newEdges } = buildFlow(skills);
     setNodes(newNodes);
     setEdges(newEdges);
     setSelectedNode(null);
-  }, [skills, layers]);
+  }, [skills]);
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) =>
@@ -381,8 +345,6 @@ function SkillTreeFlow({
   );
 
   const onNodeClick: NodeMouseHandler = useCallback((_event, node) => {
-    // Ignore clicks on layer label nodes
-    if (node.type === "layerLabel") return;
     setSelectedNode(node as Node<SkillNodeData>);
   }, []);
 
@@ -580,7 +542,7 @@ function SkillTreeFlow({
       }));
       currentSkills.push(newSkill);
 
-      const { nodes: newNodes, edges: newEdges } = buildFlow(currentSkills, layers);
+      const { nodes: newNodes, edges: newEdges } = buildFlow(currentSkills);
       // Preserve completion state
       const completionMap = new Map(
         skillNodes.map((n) => [n.id, n.data.completed])
@@ -640,8 +602,7 @@ function SkillTreeFlow({
               parentIds: n.data.parentIds,
               childIds: n.data.childIds,
               completed: n.data.completed,
-            })),
-            layers
+            }))
           );
           setNodes(revertNodes);
           setEdges(revertEdges);
@@ -713,14 +674,14 @@ function SkillTreeFlow({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        defaultEdgeOptions={defaultEdgeOptions}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
-        nodesDraggable={false}
         fitView
       >
-        <Background style={{ backgroundColor: "#dde5d4" }} />
+        <Background style={{ backgroundColor: "#e8f5ff" }} />
         <Controls />
       </ReactFlow>
 

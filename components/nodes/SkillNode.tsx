@@ -46,15 +46,15 @@ export function SkillNode({ data, selected }: NodeProps<SkillNodeType>) {
         relative min-w-[140px] max-w-[180px] rounded-lg border-2 px-3 py-2.5 text-center shadow hover:scale-105
         ${
           completed
-            ? "border-emerald-400 bg-emerald-50 ring-2 ring-emerald-400/20"
+            ? "border-[#8be08b] bg-[#c1f5c1] ring-2 ring-[#c1f5c1]/20"
             : selected
               ? "border-amber-500 bg-white ring-2 ring-amber-500/30"
               : "border-zinc-300 bg-white"
         }
       `}
       style={{
-        opacity: visible ? 1 : 0,
-        transition: "opacity 800ms ease-out, transform 450ms ease-out",
+        transform: visible ? "scale(1)" : "scale(0)",
+        transition: "transform 650ms ease-out",
       }}
     >
       <Handle
@@ -80,7 +80,7 @@ export function SkillNode({ data, selected }: NodeProps<SkillNodeType>) {
       )}
 
       <span
-        className={`block text-sm font-medium ${completed ? "text-emerald-800" : "text-zinc-800"}`}
+        className="block text-sm font-medium text-zinc-800"
       >
         {data.label}
       </span>
