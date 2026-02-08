@@ -1,32 +1,48 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Home } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
 
-export function CalendarSideBar() {
+interface CalendarSideBarProps {
+  onDateSelect?: (date: Date) => void;
+}
+
+export function CalendarSideBar({ onDateSelect }: CalendarSideBarProps) {
+  const [date, setDate] = useState<Date>(new Date());
+
+  // Notify parent of initial date on mount
+  useEffect(() => {
+    onDateSelect?.(date);
+  }, []);
+
+  const handleDateSelect = (selectedDate: Date | undefined) => {
+    if (selectedDate) {
+      setDate(selectedDate);
+      onDateSelect?.(selectedDate);
+    }
+  };
+
   return (
     <Sidebar>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Application</SidebarGroupLabel>
+          <SidebarGroupLabel>Calendar</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <a href="/">
-                    <Home />
-                    <span>Home</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
+            <Calendar
+              mode="single"
+              selected={date}
+              onSelect={handleDateSelect}
+            />
+            <div className="px-3 py-2 text-sm text-muted-foreground">
+              Selected: {date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+            </div>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
