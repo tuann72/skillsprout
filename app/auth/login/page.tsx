@@ -24,7 +24,9 @@ export default function LoginPage() {
       ? await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
         })
       : await supabase.auth.signInWithPassword({ email, password });
 
@@ -40,7 +42,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/");
+    router.push("/home");
   }
 
   async function handleOAuth(provider: "google" | "github") {
@@ -55,7 +57,7 @@ export default function LoginPage() {
   return (
     <div
       className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#dde5d4" }}
+      style={{ backgroundColor: "#e8f5ff" }}
     >
       <div className="w-full max-w-sm space-y-6 rounded-xl bg-white p-8 shadow-lg">
         <div className="text-center">
@@ -86,16 +88,10 @@ export default function LoginPage() {
             minLength={6}
           />
 
-          {error && (
-            <p className="text-sm text-destructive">{error}</p>
-          )}
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading
-              ? "Loading..."
-              : isSignUp
-                ? "Sign Up"
-                : "Sign In"}
+            {loading ? "Loading..." : isSignUp ? "Sign Up" : "Sign In"}
           </Button>
         </form>
 
@@ -108,7 +104,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="space-y-2">
+        {/*<div className="space-y-2">
           <Button
             variant="outline"
             className="w-full"
@@ -123,7 +119,7 @@ export default function LoginPage() {
           >
             Continue with GitHub
           </Button>
-        </div>
+        </div>*/}
 
         <p className="text-center text-sm text-muted-foreground">
           {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
