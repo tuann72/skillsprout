@@ -13,13 +13,13 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const supabase = createClient();
 
   async function handleEmailAuth(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
+    const supabase = createClient();
     const { error } = isSignUp
       ? await supabase.auth.signUp({
           email,
@@ -44,6 +44,7 @@ export default function LoginPage() {
   }
 
   async function handleOAuth(provider: "google" | "github") {
+    const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: { redirectTo: `${window.location.origin}/auth/callback` },
