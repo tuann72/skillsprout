@@ -1,9 +1,11 @@
+import { useEffect, useState } from "react";
 import { type Node, type NodeProps } from "@xyflow/react";
 
 export type LayerLabelData = {
   label: string;
   theme: string;
   layerNumber: number;
+  animationDelay?: number;
 };
 
 export type LayerLabelNodeType = Node<LayerLabelData, "layerLabel">;
@@ -21,9 +23,20 @@ function colorForLayer(n: number): string {
 }
 
 export function LayerLabelNode({ data }: NodeProps<LayerLabelNodeType>) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const timeout = setTimeout(
+      () => setVisible(true),
+      data.animationDelay ?? 0,
+    );
+    return () => clearTimeout(timeout);
+  }, [data.animationDelay]);
+
   return (
     <div
-      className={`pointer-events-none flex select-none items-center gap-2 rounded-lg border bg-gradient-to-r px-4 py-2 shadow-sm ${colorForLayer(data.layerNumber)}`}
+      className={`pointer-events-none flex select-none items-center gap-2 rounded-lg border bg-gradient-to-r px-4 py-2 shadow-sm transition-opacity duration-800 ease-out ${colorForLayer(data.layerNumber)}`}
+      style={{ opacity: visible ? 1 : 0 }}
     >
       <span className="text-xs font-bold uppercase tracking-wider opacity-50">
         Layer {data.layerNumber}
