@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import { CheckCircle2 } from "lucide-react";
 import type { Difficulty } from "@/types/lesson-plan";
@@ -30,15 +29,6 @@ const difficultyColors: Record<Difficulty, string> = {
 
 export function SkillNode({ data, selected }: NodeProps<SkillNodeType>) {
   const completed = data.completed ?? false;
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const timeout = setTimeout(
-      () => setVisible(true),
-      data.animationDelay ?? 0,
-    );
-    return () => clearTimeout(timeout);
-  }, [data.animationDelay]);
 
   return (
     <div
@@ -52,10 +42,6 @@ export function SkillNode({ data, selected }: NodeProps<SkillNodeType>) {
               : "border-zinc-300 bg-white"
         }
       `}
-      style={{
-        opacity: visible ? 1 : 0,
-        transition: "opacity 800ms ease-out, transform 450ms ease-out",
-      }}
     >
       <Handle
         type="target"

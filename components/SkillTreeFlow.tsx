@@ -116,13 +116,31 @@ function buildFlow(
     themeMap.set(layer.layer_number, layer.theme);
   }
 
+  // Build a lookup from skill id → layer for edge animation delays
+  const skillLayerMap = new Map<string, number>();
+  for (const skill of skills) {
+    skillLayerMap.set(skill.id, skill.layer ?? 0);
+  }
+
+  // Compute layer ordering for staggered delays
+  const uniqueLayers = [...new Set(skills.map((s) => s.layer ?? 0))].sort((a, b) => a - b);
+  const layerIndex = new Map(uniqueLayers.map((l, i) => [l, i]));
+
   // Build edges first (needed for dagre)
   const edges: Edge[] = skills.flatMap((skill) =>
-    (skill.childIds ?? []).map((childId) => ({
-      id: `e-${skill.id}-${childId}`,
-      source: skill.id,
-      target: childId,
-    }))
+    (skill.childIds ?? []).map((childId) => {
+      // Edge fades in based on the target node's layer
+      const targetLayer = skillLayerMap.get(childId) ?? 0;
+      const delay = (layerIndex.get(targetLayer) ?? 0) * 300;
+      return {
+        id: `e-${skill.id}-${childId}`,
+        source: skill.id,
+        target: childId,
+        style: { stroke: "#6B4226", strokeWidth: 3, opacity: 0 },
+        className: `edge-fade-in edge-delay-${delay}`,
+        data: { animationDelay: delay },
+      };
+    })
   );
 
   // Set up dagre graph for optimized node placement
@@ -140,16 +158,13 @@ function buildFlow(
   dagre.layout(g);
 
   // Build skill nodes using dagre-computed positions
-  // Compute layer order for staggered fade-in (all nodes in same layer share delay)
-  const uniqueLayers = [...new Set(skills.map((s) => s.layer ?? 0))].sort((a, b) => a - b);
-  const layerIndex = new Map(uniqueLayers.map((l, i) => [l, i]));
-
   const skillNodes: Node<SkillNodeData>[] = skills.map((skill) => {
     const pos = g.node(skill.id);
     return {
       id: skill.id,
       type: "skill" as const,
       position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
+      style: { transform: "scale(0)", transition: "transform 5000ms cubic-bezier(0.34, 1.56, 0.64, 1)" },
       data: {
         label: skill.label,
         description: skill.description,
@@ -161,7 +176,7 @@ function buildFlow(
         parentIds: skill.parentIds,
         childIds: skill.childIds,
         completed: skill.completed ?? false,
-        animationDelay: (layerIndex.get(skill.layer ?? 0) ?? 0) * 150,
+        animationDelay: (layerIndex.get(skill.layer ?? 0) ?? 0) * 300,
       },
     };
   });
@@ -187,11 +202,12 @@ function buildFlow(
       id: `layer-label-${layerNum}`,
       type: "layerLabel" as const,
       position: { x: 0, y: minY - NODE_HEIGHT / 2 + LABEL_OFFSET_Y },
+      style: { transform: "scale(0)", transition: "transform 5000ms cubic-bezier(0.34, 1.56, 0.64, 1)" },
       data: {
         label: theme,
         theme,
         layerNumber: layerNum,
-        animationDelay: (layerIndex.get(layerNum) ?? 0) * 150,
+        animationDelay: (layerIndex.get(layerNum) ?? 0) * 300,
       },
       selectable: false,
       draggable: false,
@@ -345,6 +361,40 @@ function SkillTreeFlow({
     setNodes(newNodes);
     setEdges(newEdges);
     setSelectedNode(null);
+
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    // Animate nodes: scale in after their delay
+    for (const node of newNodes) {
+      const delay = (node.data as { animationDelay?: number })?.animationDelay ?? 0;
+      const timer = setTimeout(() => {
+        setNodes((prev) =>
+          prev.map((n) =>
+            n.id === node.id
+              ? { ...n, style: { ...n.style, transform: "scale(1)" } }
+              : n
+          )
+        );
+      }, delay);
+      timers.push(timer);
+    }
+
+    // Animate edges: fade in after their delay
+    for (const edge of newEdges) {
+      const delay = (edge.data as { animationDelay?: number })?.animationDelay ?? 0;
+      const timer = setTimeout(() => {
+        setEdges((prev) =>
+          prev.map((e) =>
+            e.id === edge.id
+              ? { ...e, style: { ...e.style, opacity: 1, transition: "opacity 1500ms ease-out" } }
+              : e
+          )
+        );
+      }, delay);
+      timers.push(timer);
+    }
+
+    return () => timers.forEach(clearTimeout);
   }, [skills, layers]);
 
   const onNodesChange: OnNodesChange = useCallback(
