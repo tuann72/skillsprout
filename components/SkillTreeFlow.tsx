@@ -274,6 +274,13 @@ const difficultyColor: Record<Difficulty, string> = {
 
 const nodeTypes = { skill: SkillNode };
 
+const defaultEdgeOptions = {
+  style: {
+    stroke: "#8B6914",
+    strokeWidth: 2.5,
+  },
+};
+
 export type SkillTreeFlowProps = {
   skills?: Skill[];
   layers?: Layer[];
@@ -667,13 +674,14 @@ function SkillTreeFlow({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        defaultEdgeOptions={defaultEdgeOptions}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
         fitView
       >
-        <Background style={{ backgroundColor: "#dde5d4" }} />
+        <Background style={{ backgroundColor: "#e8f5ff" }} />
         <Controls />
       </ReactFlow>
 
