@@ -53,8 +53,8 @@ export function SkillNode({ data, selected }: NodeProps<SkillNodeType>) {
         }
       `}
       style={{
-        opacity: visible ? 1 : 0,
-        transition: "opacity 800ms ease-out, transform 450ms ease-out",
+        transform: visible ? "scale(1)" : "scale(0)",
+        transition: "transform 650ms ease-out",
       }}
     >
       <Handle
