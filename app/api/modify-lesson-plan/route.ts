@@ -33,7 +33,6 @@ export async function POST(request: Request) {
     const response = await client.messages.create({
       model: "claude-sonnet-4-5-20250929",
       max_tokens: 8192,
-      tools: [lessonPlanSchema],
       tools: [lessonPlanSchema()],
       tool_choice: { type: "tool", name: "generate_lesson_plan" },
       messages: [{ role: "user", content: userPrompt }],
@@ -76,7 +75,6 @@ export async function POST(request: Request) {
           raw_plan: modifiedPlan,
         })
         .eq("id", planId);
-
       if (planUpdateError) {
         console.error("[modify-api] lesson_plans update failed:", planUpdateError);
         return NextResponse.json(
