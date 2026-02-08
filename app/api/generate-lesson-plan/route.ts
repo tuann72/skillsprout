@@ -39,7 +39,10 @@ export async function POST(request: Request) {
     const response = await client.messages.create({
       model: "claude-sonnet-4-5-20250929",
       max_tokens: 8192,
-      tools: [lessonPlanSchema(lessonCount ? parseInt(lessonCount, 10) : 10)],
+      tools: [(() => {
+        const parts = (lessonCount || "6-10").split("-").map(Number);
+        return lessonPlanSchema(parts[0], parts[1]);
+      })()],
       tool_choice: { type: "tool", name: "generate_lesson_plan" },
       messages: [{ role: "user", content: userPrompt }],
     });

@@ -1,8 +1,8 @@
 import type Anthropic from "@anthropic-ai/sdk";
 
-export function lessonPlanSchema(lessonCount?: number): Anthropic.Tool {
-  const countInstruction = lessonCount
-    ? ` Return EXACTLY ${lessonCount} lessons spread across the layers.`
+export function lessonPlanSchema(minLessons?: number, maxLessons?: number): Anthropic.Tool {
+  const countInstruction = minLessons && maxLessons
+    ? ` Return between ${minLessons} and ${maxLessons} lessons spread across the layers.`
     : "";
 
   return {
