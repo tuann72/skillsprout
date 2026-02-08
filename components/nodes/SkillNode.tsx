@@ -72,7 +72,9 @@ export function SkillNode({ data, selected }: NodeProps<SkillNodeType>) {
 
       {data.durationMinutes != null && (
         <span className="mt-0.5 block text-[11px] text-muted-foreground">
-          {data.durationMinutes} min
+          {data.durationMinutes >= 60
+            ? `${(data.durationMinutes / 60).toFixed(data.durationMinutes % 60 === 0 ? 0 : 1)} hr`
+            : `${data.durationMinutes} min`}
         </span>
       )}
 
