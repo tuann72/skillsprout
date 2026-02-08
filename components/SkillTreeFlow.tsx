@@ -140,6 +140,10 @@ function buildFlow(
   dagre.layout(g);
 
   // Build skill nodes using dagre-computed positions
+  // Compute layer order for staggered fade-in (all nodes in same layer share delay)
+  const uniqueLayers = [...new Set(skills.map((s) => s.layer ?? 0))].sort((a, b) => a - b);
+  const layerIndex = new Map(uniqueLayers.map((l, i) => [l, i]));
+
   const skillNodes: Node<SkillNodeData>[] = skills.map((skill) => {
     const pos = g.node(skill.id);
     return {
@@ -157,6 +161,7 @@ function buildFlow(
         parentIds: skill.parentIds,
         childIds: skill.childIds,
         completed: skill.completed ?? false,
+        animationDelay: (layerIndex.get(skill.layer ?? 0) ?? 0) * 150,
       },
     };
   });
@@ -186,6 +191,7 @@ function buildFlow(
         label: theme,
         theme,
         layerNumber: layerNum,
+        animationDelay: (layerIndex.get(layerNum) ?? 0) * 150,
       },
       selectable: false,
       draggable: false,
