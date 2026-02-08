@@ -12,7 +12,7 @@ const client = new Anthropic();
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { skill, currentLevel, goalLevel, duration, dailyCommitment } = body;
+    const { skill, currentLevel, goalLevel, duration, dailyCommitment, lessonCount } = body;
 
     if (!skill || !currentLevel || !goalLevel || !duration || !dailyCommitment) {
       return NextResponse.json(
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const response = await client.messages.create({
       model: "claude-sonnet-4-5-20250929",
       max_tokens: 8192,
-      tools: [lessonPlanSchema],
+      tools: [lessonPlanSchema(lessonCount ? parseInt(lessonCount, 10) : 10)],
       tool_choice: { type: "tool", name: "generate_lesson_plan" },
       messages: [{ role: "user", content: userPrompt }],
     });

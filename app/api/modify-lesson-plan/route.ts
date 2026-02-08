@@ -34,6 +34,7 @@ export async function POST(request: Request) {
       model: "claude-sonnet-4-5-20250929",
       max_tokens: 8192,
       tools: [lessonPlanSchema],
+      tools: [lessonPlanSchema()],
       tool_choice: { type: "tool", name: "generate_lesson_plan" },
       messages: [{ role: "user", content: userPrompt }],
     });
@@ -85,10 +86,11 @@ export async function POST(request: Request) {
       }
 
       // Fetch existing lessons to match by lesson_number + topic
-      const { data: existingLessons } = await supabase
+      const { data: existingLessons, error: fetchLessonsError } = await supabase
         .from("lessons")
         .select("id, lesson_number, topic")
         .eq("lesson_plan_id", planId);
+      console.log("[modify-api] fetch existing lessons:", fetchLessonsError ? `ERROR: ${fetchLessonsError.message}` : `found ${existingLessons?.length ?? 0}`);
 
       const existingMap = new Map(
         (existingLessons ?? []).map((l) => [`${l.lesson_number}:${l.topic}`, l])
@@ -102,6 +104,7 @@ export async function POST(request: Request) {
       const toDelete = (existingLessons ?? []).filter(
         (l) => !newLessonKeys.has(`${l.lesson_number}:${l.topic}`)
       );
+      console.log("[modify-api] lessons to delete:", toDelete.length, toDelete.map(l => `${l.lesson_number}:${l.topic}`));
       if (toDelete.length > 0) {
         const { error: deleteError } = await supabase
           .from("lessons")
@@ -110,6 +113,7 @@ export async function POST(request: Request) {
         if (deleteError) {
           console.error("[modify-api] lessons delete failed:", deleteError);
         }
+        console.log("[modify-api] delete lessons:", deleteError ? `ERROR: ${deleteError.message}` : "OK");
       }
 
       // Upsert lessons: update matched, insert new
@@ -151,30 +155,32 @@ export async function POST(request: Request) {
             })
             .select("id")
             .single();
-          if (insertError) {
-            console.error("[modify-api] lesson insert failed:", insertError);
-          }
+          console.log(`[modify-api] insert lesson ${lesson.lesson_number} (${lesson.topic}):`, insertError ? `ERROR: ${insertError.message}` : `OK, id=${newRow?.id}`);
           if (newRow) {
             lessonDbIds[lesson.lesson_number] = newRow.id;
           }
         }
       }
 
-      // Delete old layers and re-insert
-      const { error: layerDeleteError } = await supabase.from("layers").delete().eq("lesson_plan_id", planId);
-      if (layerDeleteError) {
-        console.error("[modify-api] layers delete failed:", layerDeleteError);
-      }
-      const { error: layerInsertError } = await supabase.from("layers").insert(
+      // Upsert layers (RLS may block DELETE, so upsert is safer)
+      const { error: upsertLayersError } = await supabase.from("layers").upsert(
         modifiedPlan.layers.map((l) => ({
           lesson_plan_id: planId,
           layer_number: l.layer_number,
           theme: l.theme,
-        }))
+        })),
+        { onConflict: "lesson_plan_id,layer_number" }
       );
-      if (layerInsertError) {
-        console.error("[modify-api] layers insert failed:", layerInsertError);
-      }
+      console.log("[modify-api] upsert layers:", upsertLayersError ? `ERROR: ${upsertLayersError.message}` : "OK");
+
+      // Remove layers no longer in the plan
+      const newLayerNumbers = modifiedPlan.layers.map((l) => l.layer_number);
+      const { error: deleteStaleLayersError } = await supabase
+        .from("layers")
+        .delete()
+        .eq("lesson_plan_id", planId)
+        .not("layer_number", "in", `(${newLayerNumbers.join(",")})`);
+      console.log("[modify-api] delete stale layers:", deleteStaleLayersError ? `ERROR: ${deleteStaleLayersError.message}` : "OK (may be 0 rows)");
 
       // Fetch completions for the surviving lessons
       const lessonIds = Object.values(lessonDbIds);
