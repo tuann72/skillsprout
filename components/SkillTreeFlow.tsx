@@ -338,11 +338,15 @@ const nodeTypes = { skill: SkillNode, layerLabel: LayerLabelNode };
 export type SkillTreeFlowProps = {
   skills?: Skill[];
   layers?: Layer[];
+  planId?: string | null;
+  lessonDbIds?: Record<number, string>;
 };
 
 function SkillTreeFlow({
   skills = demoSkills,
   layers = demoLayers,
+  planId,
+  lessonDbIds,
 }: SkillTreeFlowProps) {
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
     () => buildFlow(skills, layers),
@@ -377,22 +381,56 @@ function SkillTreeFlow({
   }, []);
 
   /** Toggle the completed state on the currently-selected node. */
-  const toggleComplete = useCallback(() => {
+  const toggleComplete = useCallback(async () => {
     if (!selectedNode) return;
     const id = selectedNode.id;
+    const wasCompleted = selectedNode.data.completed;
+    const newCompleted = !wasCompleted;
+
+    // Optimistic update
     setNodes((prev) =>
       prev.map((n) =>
         n.id === id
-          ? { ...n, data: { ...n.data, completed: !n.data.completed } }
+          ? { ...n, data: { ...n.data, completed: newCompleted } }
           : n
       )
     );
     setSelectedNode((prev) =>
       prev
-        ? { ...prev, data: { ...prev.data, completed: !prev.data.completed } }
+        ? { ...prev, data: { ...prev.data, completed: newCompleted } }
         : null
     );
-  }, [selectedNode]);
+
+    // Persist to DB if authenticated with a saved plan
+    if (planId && lessonDbIds) {
+      const lessonNumber = selectedNode.data.lessonNumber;
+      const lessonDbId = lessonNumber != null ? lessonDbIds[lessonNumber] : undefined;
+      if (lessonDbId) {
+        try {
+          const res = await fetch("/api/lesson-completions", {
+            method: newCompleted ? "POST" : "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lesson_id: lessonDbId }),
+          });
+          if (!res.ok) throw new Error("Failed to save");
+        } catch {
+          // Revert on failure
+          setNodes((prev) =>
+            prev.map((n) =>
+              n.id === id
+                ? { ...n, data: { ...n.data, completed: wasCompleted } }
+                : n
+            )
+          );
+          setSelectedNode((prev) =>
+            prev
+              ? { ...prev, data: { ...prev.data, completed: wasCompleted } }
+              : null
+          );
+        }
+      }
+    }
+  }, [selectedNode, planId, lessonDbIds]);
 
   const d = selectedNode?.data;
 

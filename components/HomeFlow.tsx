@@ -5,9 +5,13 @@ import { LandingForm, type LandingFormData } from "./LandingForm";
 import { LevelSelect, type SkillLevel } from "./LevelSelect";
 import SkillTreeFlow from "./SkillTreeFlow";
 import { convertLessonPlan, type Skill } from "./SkillTreeFlow";
+import { SavedPlans } from "./SavedPlans";
+import { useAuth } from "./AuthProvider";
 import { AIPanelArrow } from "@/components/custom/AI-panel-arrow";
 import { NewDraftButton } from "@/components/custom/NewDraftButton";
-import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, FolderOpen } from "lucide-react";
+import { useRouter } from "next/navigation";
 import type { LessonPlan, Layer } from "@/types/lesson-plan";
 
 // ---- Map form values → API body ----
@@ -40,11 +44,14 @@ type Step =
   | { kind: "form" }
   | { kind: "level"; formData: LandingFormData }
   | { kind: "loading"; formData: LandingFormData; level: SkillLevel }
-  | { kind: "tree"; skills: Skill[]; layers: Layer[] }
-  | { kind: "error"; message: string; formData: LandingFormData; level: SkillLevel };
+  | { kind: "tree"; skills: Skill[]; layers: Layer[]; planId: string | null; lessonDbIds: Record<number, string> }
+  | { kind: "error"; message: string; formData: LandingFormData; level: SkillLevel }
+  | { kind: "saved-plans" };
 
 export default function HomeFlow() {
   const [step, setStep] = useState<Step>({ kind: "form" });
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
 
   const generatePlan = useCallback(
     async (formData: LandingFormData, level: SkillLevel) => {
@@ -69,9 +76,26 @@ export default function HomeFlow() {
           throw new Error(body.error ?? `Request failed (${res.status})`);
         }
 
-        const plan: LessonPlan = await res.json();
+        const data = await res.json();
+        const plan: LessonPlan = data;
         const { skills, layers } = convertLessonPlan(plan);
-        setStep({ kind: "tree", skills, layers });
+
+        // Hydrate completion state if returned from DB
+        if (data.completions) {
+          for (const skill of skills) {
+            if (skill.lessonNumber != null) {
+              skill.completed = data.completions[skill.lessonNumber] ?? false;
+            }
+          }
+        }
+
+        setStep({
+          kind: "tree",
+          skills,
+          layers,
+          planId: data.lesson_plan_id ?? null,
+          lessonDbIds: data.lesson_db_ids ?? {},
+        });
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Something went wrong.";
@@ -81,11 +105,72 @@ export default function HomeFlow() {
     []
   );
 
+  const loadSavedPlan = useCallback(async (planId: string) => {
+    setStep({ kind: "loading", formData: { skillName: "", lessonCount: "", duration: "", commitment: "" }, level: "brand-new" });
+
+    try {
+      const res = await fetch(`/api/lesson-plans/${planId}`);
+      if (!res.ok) throw new Error("Failed to load plan");
+
+      const data = await res.json();
+      const plan: LessonPlan = data;
+      const { skills, layers } = convertLessonPlan(plan);
+
+      // Hydrate completion state
+      if (data.completions) {
+        for (const skill of skills) {
+          if (skill.lessonNumber != null) {
+            skill.completed = data.completions[skill.lessonNumber] ?? false;
+          }
+        }
+      }
+
+      setStep({
+        kind: "tree",
+        skills,
+        layers,
+        planId: data.lesson_plan_id,
+        lessonDbIds: data.lesson_db_ids ?? {},
+      });
+    } catch {
+      setStep({ kind: "form" });
+    }
+  }, []);
+
+  // ---- Auth gate: redirect to login if not signed in ----
+  if (!authLoading && !user) {
+    router.push("/auth/login");
+    return null;
+  }
+
   // ---- Form ----
   if (step.kind === "form") {
     return (
-      <LandingForm
-        onSubmit={(data) => setStep({ kind: "level", formData: data })}
+      <div className="relative">
+        <div className="absolute top-4 right-4 z-10">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setStep({ kind: "saved-plans" })}
+            className="gap-2"
+          >
+            <FolderOpen className="h-4 w-4" />
+            My Plans
+          </Button>
+        </div>
+        <LandingForm
+          onSubmit={(data) => setStep({ kind: "level", formData: data })}
+        />
+      </div>
+    );
+  }
+
+  // ---- Saved Plans ----
+  if (step.kind === "saved-plans") {
+    return (
+      <SavedPlans
+        onSelect={loadSavedPlan}
+        onBack={() => setStep({ kind: "form" })}
       />
     );
   }
@@ -147,14 +232,19 @@ export default function HomeFlow() {
   // ---- Tree ----
   return (
     <div className="relative h-screen w-screen">
-      <div className="fixed top-4 right-4 z-20">
+      <div className="fixed top-16 right-4 z-20">
         <NewDraftButton onClick={() => setStep({ kind: "form" })} />
       </div>
       <div className="fixed bottom-4 left-1/2 z-20 -translate-x-1/2">
         <AIPanelArrow />
       </div>
       <div className="absolute inset-0 z-0" style={{ backgroundColor: "#dde5d4" }}>
-        <SkillTreeFlow skills={step.skills} layers={step.layers} />
+        <SkillTreeFlow
+          skills={step.skills}
+          layers={step.layers}
+          planId={step.planId}
+          lessonDbIds={step.lessonDbIds}
+        />
       </div>
     </div>
   );

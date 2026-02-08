@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { createClient } from "@/lib/supabase/server";
+import type { LessonPlan } from "@/types/lesson-plan";
 
 const VALID_LEVELS = ["beginner", "intermediate", "advanced", "expert"] as const;
 type Level = (typeof VALID_LEVELS)[number];
@@ -162,7 +164,76 @@ export async function POST(request: Request) {
     );
 
     if (toolUseBlock && toolUseBlock.type === "tool_use") {
-      return NextResponse.json(toolUseBlock.input);
+      const plan = toolUseBlock.input as LessonPlan;
+
+      // Save to Supabase if user is authenticated
+      const supabase = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      let lessonPlanId: string | null = null;
+      let lessonDbIds: Record<number, string> = {};
+
+      if (user) {
+        const { data: planRow } = await supabase
+          .from("lesson_plans")
+          .insert({
+            user_id: user.id,
+            title: plan.title,
+            skill: plan.skill,
+            estimated_minutes: plan.estimated_minutes,
+            objectives: plan.objectives,
+            current_level: body.currentLevel,
+            goal_level: body.goalLevel,
+            duration: body.duration,
+            daily_commitment: body.dailyCommitment,
+            raw_plan: plan,
+          })
+          .select("id")
+          .single();
+
+        if (planRow) {
+          lessonPlanId = planRow.id;
+
+          // Insert layers
+          await supabase.from("layers").insert(
+            plan.layers.map((l) => ({
+              lesson_plan_id: lessonPlanId!,
+              layer_number: l.layer_number,
+              theme: l.theme,
+            }))
+          );
+
+          // Insert lessons and collect their DB IDs
+          const { data: lessonRows } = await supabase
+            .from("lessons")
+            .insert(
+              plan.lessons.map((l) => ({
+                lesson_plan_id: lessonPlanId!,
+                lesson_number: l.lesson_number,
+                layer: l.layer,
+                topic: l.topic,
+                difficulty: l.difficulty,
+                description: l.description,
+                resources: l.resources,
+                duration_minutes: l.duration_minutes,
+                connections: l.connections,
+              }))
+            )
+            .select("id, lesson_number");
+
+          if (lessonRows) {
+            lessonDbIds = Object.fromEntries(
+              lessonRows.map((r) => [r.lesson_number, r.id])
+            );
+          }
+        }
+      }
+
+      return NextResponse.json({
+        ...plan,
+        lesson_plan_id: lessonPlanId,
+        lesson_db_ids: lessonDbIds,
+      });
     }
 
     return NextResponse.json(
