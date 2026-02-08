@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Lexend_Deca } from "next/font/google";
+import { Rubik } from "next/font/google";
 import "./globals.css";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { CalendarSideBar } from "@/components/custom/CalendarSideBar";
@@ -7,8 +7,8 @@ import { AuthProvider } from "@/components/AuthProvider";
 import { CalendarProvider } from "@/components/CalendarContext";
 import { AuthButton } from "@/components/AuthButton";
 
-const lexendDeca = Lexend_Deca({
-  variable: "--font-lexend-deca",
+const rubik = Rubik({
+  variable: "--font-rubik",
   subsets: ["latin"],
 });
 
@@ -25,7 +25,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${lexendDeca.variable} antialiased`}
+        className={`${rubik.variable} antialiased`}
       >
         <AuthProvider>
           <CalendarProvider>
