@@ -21,6 +21,8 @@ import { SkillNode } from "./nodes/SkillNode";
 import type { SkillNodeData } from "./nodes/SkillNode";
 import { LayerLabelNode } from "./nodes/LayerLabelNode";
 import type { LayerLabelData } from "./nodes/LayerLabelNode";
+import { TreeNode } from "./nodes/TreeNode";
+import type { TreeNodeData } from "./nodes/TreeNode";
 import type { LessonPlan, Difficulty, Layer } from "@/types/lesson-plan";
 import { Button } from "@/components/ui/button";
 import {
@@ -97,11 +99,62 @@ const NODE_GAP_X = 220;
 const LAYER_GAP_Y = 200; // vertical space between layers (includes label)
 const LABEL_OFFSET_Y = -40; // label sits above the skill nodes in each layer
 
+// Generate random tree positions that avoid skill nodes
+const TREE_COUNT = 12;
+const MIN_DISTANCE_FROM_NODES = 150;
+const TREE_AREA = { minX: -500, maxX: 500, minY: -100, maxY: 900 };
+
+function generateTreePositions(
+  skillNodePositions: { x: number; y: number }[],
+  count: number,
+  seed: number = 42
+): { x: number; y: number; scale: number }[] {
+  // Simple seeded random for consistent results
+  const seededRandom = (s: number) => {
+    const x = Math.sin(s) * 10000;
+    return x - Math.floor(x);
+  };
+
+  const isValidPosition = (x: number, y: number) => {
+    for (const node of skillNodePositions) {
+      const distance = Math.sqrt((x - node.x) ** 2 + (y - node.y) ** 2);
+      if (distance < MIN_DISTANCE_FROM_NODES) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const positions: { x: number; y: number; scale: number }[] = [];
+  let attempts = 0;
+  let seedOffset = seed;
+
+  while (positions.length < count && attempts < 500) {
+    const x = TREE_AREA.minX + seededRandom(seedOffset++) * (TREE_AREA.maxX - TREE_AREA.minX);
+    const y = TREE_AREA.minY + seededRandom(seedOffset++) * (TREE_AREA.maxY - TREE_AREA.minY);
+    const scale = 1 + seededRandom(seedOffset++) * 0.8; // 1.0 to 1.8
+
+    if (isValidPosition(x, y)) {
+      // Also check distance from other trees
+      const tooCloseToOtherTree = positions.some(
+        (p) => Math.sqrt((x - p.x) ** 2 + (y - p.y) ** 2) < 80
+      );
+      if (!tooCloseToOtherTree) {
+        positions.push({ x, y, scale });
+      }
+    }
+    attempts++;
+  }
+
+  return positions;
+}
+
 function buildFlow(
   skills: Skill[],
-  layers: Layer[] = []
+  layers: Layer[] = [],
+  selectedTrees: string[] = []
 ): {
-  nodes: (Node<SkillNodeData> | Node<LayerLabelData>)[];
+  nodes: (Node<SkillNodeData> | Node<LayerLabelData> | Node<TreeNodeData>)[];
   edges: Edge[];
 } {
   const hasLayers = skills.some((s) => s.layer != null);
@@ -218,7 +271,31 @@ function buildFlow(
     }))
   );
 
-  return { nodes: [...labelNodes, ...skillNodes], edges };
+  // Get skill node positions to avoid
+  const skillNodePositions = skillNodes.map((node) => node.position);
+
+  // Generate random tree positions that avoid skill nodes
+  const treePositions = generateTreePositions(skillNodePositions, TREE_COUNT);
+
+  // Tree decoration nodes - only if trees are selected
+  const treeNodes: Node<TreeNodeData>[] = selectedTrees.length > 0
+    ? treePositions.map((pos, index) => ({
+        id: `tree-${index}`,
+        type: "tree" as const,
+        position: { x: pos.x, y: pos.y },
+        data: {
+          src: `/${selectedTrees[index % selectedTrees.length]}.gif`,
+          scale: pos.scale,
+        },
+        selectable: false,
+        draggable: false,
+        focusable: false,
+        zIndex: -1,
+        className: "pointer-events-none",
+      }))
+    : [];
+
+  return { nodes: [...treeNodes, ...labelNodes, ...skillNodes], edges };
 }
 
 // ---- Demo data matching the LLM output shape ----
@@ -333,20 +410,22 @@ const difficultyColor: Record<Difficulty, string> = {
 
 // ---- Component ----
 
-const nodeTypes = { skill: SkillNode, layerLabel: LayerLabelNode };
+const nodeTypes = { skill: SkillNode, layerLabel: LayerLabelNode, tree: TreeNode };
 
 export type SkillTreeFlowProps = {
   skills?: Skill[];
   layers?: Layer[];
+  selectedTrees?: string[];
 };
 
 function SkillTreeFlow({
   skills = demoSkills,
   layers = demoLayers,
+  selectedTrees = ["t1", "t2", "t3", "t4", "t5", "t6"],
 }: SkillTreeFlowProps) {
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => buildFlow(skills, layers),
-    [skills, layers]
+    () => buildFlow(skills, layers, selectedTrees),
+    [skills, layers, selectedTrees]
   );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -371,8 +450,8 @@ function SkillTreeFlow({
   );
 
   const onNodeClick: NodeMouseHandler = useCallback((_event, node) => {
-    // Ignore clicks on layer label nodes
-    if (node.type === "layerLabel") return;
+    // Ignore clicks on layer label and tree nodes
+    if (node.type === "layerLabel" || node.type === "tree") return;
     setSelectedNode(node as Node<SkillNodeData>);
   }, []);
 

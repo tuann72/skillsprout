@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 import { LandingForm, type LandingFormData } from "./LandingForm";
 import { LevelSelect, type SkillLevel } from "./LevelSelect";
+import { TreeSelect } from "./TreeSelect";
 import SkillTreeFlow from "./SkillTreeFlow";
 import { convertLessonPlan, type Skill } from "./SkillTreeFlow";
 import { AIPanelArrow } from "@/components/custom/AI-panel-arrow";
@@ -39,46 +40,88 @@ const DURATION_LABELS: Record<string, string> = {
 type Step =
   | { kind: "form" }
   | { kind: "level"; formData: LandingFormData }
-  | { kind: "loading"; formData: LandingFormData; level: SkillLevel }
-  | { kind: "tree"; skills: Skill[]; layers: Layer[] }
-  | { kind: "error"; message: string; formData: LandingFormData; level: SkillLevel };
+  | { kind: "treeSelect"; formData: LandingFormData; level: SkillLevel }
+  | { kind: "loading"; formData: LandingFormData; level: SkillLevel; selectedTrees: string[] }
+  | { kind: "tree"; skills: Skill[]; layers: Layer[]; selectedTrees: string[] }
+  | { kind: "error"; message: string; formData: LandingFormData; level: SkillLevel; selectedTrees: string[] };
+
+type PlanResult =
+  | { status: "loading" }
+  | { status: "success"; skills: Skill[]; layers: Layer[] }
+  | { status: "error"; message: string };
 
 export default function HomeFlow() {
   const [step, setStep] = useState<Step>({ kind: "form" });
+  const [planResult, setPlanResult] = useState<PlanResult>({ status: "loading" });
+  const planPromiseRef = useRef<Promise<{ skills: Skill[]; layers: Layer[] } | null> | null>(null);
 
-  const generatePlan = useCallback(
+  const startGeneratingPlan = useCallback(
     async (formData: LandingFormData, level: SkillLevel) => {
-      setStep({ kind: "loading", formData, level });
+      setPlanResult({ status: "loading" });
 
-      try {
-        const res = await fetch("/api/generate-lesson-plan", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            skill: formData.skillName,
-            currentLevel: LEVEL_TO_API[level],
-            goalLevel: "expert",
-            duration: DURATION_LABELS[formData.duration] ?? formData.duration,
-            dailyCommitment:
-              COMMITMENT_TO_MINUTES[formData.commitment] ?? formData.commitment,
-          }),
-        });
+      const promise = (async () => {
+        try {
+          const res = await fetch("/api/generate-lesson-plan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              skill: formData.skillName,
+              currentLevel: LEVEL_TO_API[level],
+              goalLevel: "expert",
+              duration: DURATION_LABELS[formData.duration] ?? formData.duration,
+              dailyCommitment:
+                COMMITMENT_TO_MINUTES[formData.commitment] ?? formData.commitment,
+            }),
+          });
 
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.error ?? `Request failed (${res.status})`);
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error ?? `Request failed (${res.status})`);
+          }
+
+          const plan: LessonPlan = await res.json();
+          const { skills, layers } = convertLessonPlan(plan);
+          setPlanResult({ status: "success", skills, layers });
+          return { skills, layers };
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : "Something went wrong.";
+          setPlanResult({ status: "error", message });
+          return null;
         }
+      })();
 
-        const plan: LessonPlan = await res.json();
-        const { skills, layers } = convertLessonPlan(plan);
-        setStep({ kind: "tree", skills, layers });
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Something went wrong.";
-        setStep({ kind: "error", message, formData, level });
-      }
+      planPromiseRef.current = promise;
+      return promise;
     },
     []
+  );
+
+  const handleTreeSelect = useCallback(
+    async (selectedTrees: string[], formData: LandingFormData, level: SkillLevel) => {
+      // Check current plan result
+      if (planResult.status === "success") {
+        setStep({ kind: "tree", skills: planResult.skills, layers: planResult.layers, selectedTrees });
+      } else if (planResult.status === "error") {
+        setStep({ kind: "error", message: planResult.message, formData, level, selectedTrees });
+      } else {
+        // Still loading - show loading screen and wait
+        setStep({ kind: "loading", formData, level, selectedTrees });
+
+        // Wait for the plan to complete
+        const result = await planPromiseRef.current;
+        if (result) {
+          setStep({ kind: "tree", skills: result.skills, layers: result.layers, selectedTrees });
+        } else {
+          // Error occurred - planResult should have the error now
+          const currentResult = planResult;
+          if (currentResult.status === "error") {
+            setStep({ kind: "error", message: currentResult.message, formData, level, selectedTrees });
+          }
+        }
+      }
+    },
+    [planResult]
   );
 
   // ---- Form ----
@@ -95,8 +138,23 @@ export default function HomeFlow() {
     return (
       <LevelSelect
         skillName={step.formData.skillName}
-        onSelect={(level) => generatePlan(step.formData, level)}
+        onSelect={(level) => {
+          // Start generating plan in background
+          startGeneratingPlan(step.formData, level);
+          // Move to tree select
+          setStep({ kind: "treeSelect", formData: step.formData, level });
+        }}
         onBack={() => setStep({ kind: "form" })}
+      />
+    );
+  }
+
+  // ---- Tree select (plan generating in background) ----
+  if (step.kind === "treeSelect") {
+    return (
+      <TreeSelect
+        onSelect={(selectedTrees) => handleTreeSelect(selectedTrees, step.formData, step.level)}
+        onBack={() => setStep({ kind: "level", formData: step.formData })}
       />
     );
   }
@@ -129,7 +187,10 @@ export default function HomeFlow() {
         <div className="flex gap-3">
           <button
             className="text-sm font-medium text-primary underline underline-offset-2"
-            onClick={() => generatePlan(step.formData, step.level)}
+            onClick={() => {
+              startGeneratingPlan(step.formData, step.level);
+              setStep({ kind: "loading", formData: step.formData, level: step.level, selectedTrees: step.selectedTrees });
+            }}
           >
             Retry
           </button>
@@ -154,7 +215,7 @@ export default function HomeFlow() {
         <AIPanelArrow />
       </div>
       <div className="absolute inset-0 z-0" style={{ backgroundColor: "#dde5d4" }}>
-        <SkillTreeFlow skills={step.skills} layers={step.layers} />
+        <SkillTreeFlow skills={step.skills} layers={step.layers} selectedTrees={step.selectedTrees} />
       </div>
     </div>
   );

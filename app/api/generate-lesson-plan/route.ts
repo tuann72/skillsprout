@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
-const VALID_LEVELS = ["beginner", "intermediate", "advanced", "expert"] as const;
+const VALID_LEVELS = [
+  "beginner",
+  "intermediate",
+  "advanced",
+  "expert",
+] as const;
 type Level = (typeof VALID_LEVELS)[number];
 
 const client = new Anthropic();
@@ -19,7 +24,7 @@ const lessonPlanSchema: Anthropic.Tool = {
     " 5. Difficulty should generally increase across layers, not within a layer." +
     " 6. Each lesson needs unique, publicly accessible online resources (articles, videos, exercises as URLs). DO NOT REPEAT RESOURCES." +
     " 7. Take into account the user's daily time commitment when sizing lesson durations." +
-    " FOR NOW RETURN EXACTLY 3 LESSONS spread across 3 layers." +
+    " FOR NOW RETURN EXACTLY 15 LESSONS spread across 4 layers." +
     " Return the result using this tool.",
   input_schema: {
     type: "object" as const,
@@ -127,10 +132,19 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { skill, currentLevel, goalLevel, duration, dailyCommitment } = body;
 
-    if (!skill || !currentLevel || !goalLevel || !duration || !dailyCommitment) {
+    if (
+      !skill ||
+      !currentLevel ||
+      !goalLevel ||
+      !duration ||
+      !dailyCommitment
+    ) {
       return NextResponse.json(
-        { error: "Missing required fields: skill, currentLevel, goalLevel, duration, dailyCommitment" },
-        { status: 400 }
+        {
+          error:
+            "Missing required fields: skill, currentLevel, goalLevel, duration, dailyCommitment",
+        },
+        { status: 400 },
       );
     }
 
@@ -142,7 +156,7 @@ export async function POST(request: Request) {
         {
           error: `Invalid level. Must be one of: ${VALID_LEVELS.join(", ")}`,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -158,7 +172,7 @@ export async function POST(request: Request) {
     });
 
     const toolUseBlock = response.content.find(
-      (block) => block.type === "tool_use"
+      (block) => block.type === "tool_use",
     );
 
     if (toolUseBlock && toolUseBlock.type === "tool_use") {
@@ -167,13 +181,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       { error: "No structured output returned from Claude" },
-      { status: 502 }
+      { status: 502 },
     );
   } catch (error) {
     console.error("Error generating lesson plan:", error);
     return NextResponse.json(
       { error: "Failed to generate lesson plan" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
