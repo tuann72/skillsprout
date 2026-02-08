@@ -409,7 +409,7 @@ function SkillTreeFlow({
         nodesDraggable={false}
         fitView
       >
-        <Background />
+        <Background style={{ backgroundColor: "#dde5d4" }} />
         <Controls />
       </ReactFlow>
 

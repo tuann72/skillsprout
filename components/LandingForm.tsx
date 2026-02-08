@@ -45,7 +45,7 @@ export function LandingForm({ onSubmit }: LandingFormProps) {
   }
 
   return (
-    <div className="relative z-20 flex min-h-screen items-center justify-center bg-zinc-50 p-4">
+    <div className="relative z-20 flex min-h-screen items-center justify-center p-4" style={{ backgroundColor: "#dde5d4" }}>
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">What do you want to learn?</CardTitle>
