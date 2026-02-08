@@ -45,7 +45,7 @@ export function LandingForm({ onSubmit }: LandingFormProps) {
   }
 
   return (
-    <div className="relative z-20 flex min-h-screen items-center justify-center p-4" style={{ backgroundColor: "#dde5d4" }}>
+    <div className="relative z-20 flex min-h-screen items-center justify-center p-4" style={{ backgroundColor: "#e8f5ff" }}>
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">What do you want to learn?</CardTitle>
@@ -97,6 +97,9 @@ export function LandingForm({ onSubmit }: LandingFormProps) {
                   <SelectItem value="1-month">1 month</SelectItem>
                   <SelectItem value="3-months">3 months</SelectItem>
                   <SelectItem value="6-months">6 months</SelectItem>
+                  <SelectItem value="1-year">1 year</SelectItem>
+                  <SelectItem value="2-years">2 years</SelectItem>
+                  <SelectItem value="3-plus-years">3+ years</SelectItem>
                 </SelectContent>
               </Select>
             </div>

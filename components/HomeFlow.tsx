@@ -38,6 +38,9 @@ const DURATION_LABELS: Record<string, string> = {
   "1-month": "1 month",
   "3-months": "3 months",
   "6-months": "6 months",
+  "1-year": "1 year",
+  "2-years": "2 years",
+  "3-plus-years": "3+ years",
 };
 
 // ---- Step state ----
