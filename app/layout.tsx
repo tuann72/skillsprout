@@ -1,16 +1,13 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Lexend_Deca } from "next/font/google";
 import "./globals.css";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { CalendarSideBar } from "@/components/custom/CalendarSideBar";
+import { AuthProvider } from "@/components/AuthProvider";
+import { AuthButton } from "@/components/AuthButton";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const lexendDeca = Lexend_Deca({
+  variable: "--font-lexend-deca",
   subsets: ["latin"],
 });
 
@@ -27,17 +24,22 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${lexendDeca.variable} antialiased`}
       >
-        <SidebarProvider defaultOpen={false}>
-          <CalendarSideBar />
-          <main className="w-full relative">
-            <div className="absolute top-4 left-4 z-10">
-              <SidebarTrigger />
-            </div>
-            {children}
-          </main>
-        </SidebarProvider>
+        <AuthProvider>
+          <SidebarProvider defaultOpen={false}>
+            <CalendarSideBar />
+            <main className="w-full relative">
+              <div className="absolute top-4 left-4 z-10">
+                <SidebarTrigger />
+              </div>
+              <div className="fixed top-4 right-4 z-50">
+                <AuthButton />
+              </div>
+              {children}
+            </main>
+          </SidebarProvider>
+        </AuthProvider>
       </body>
     </html>
   );
