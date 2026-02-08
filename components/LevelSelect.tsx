@@ -56,7 +56,10 @@ export function LevelSelect({ skillName, onSelect, onBack }: LevelSelectProps) {
   const [selected, setSelected] = useState<SkillLevel | null>(null);
 
   return (
-    <div className="relative z-20 flex min-h-screen items-center justify-center p-4" style={{ backgroundColor: "#dde5d4" }}>
+    <div
+      className="relative z-20 flex min-h-screen items-center justify-center p-4"
+      style={{ backgroundColor: "#e8f5ff" }}
+    >
       <div className="w-full max-w-2xl space-y-6">
         <div className="text-center">
           <h1 className="text-2xl font-semibold tracking-tight">
@@ -96,7 +99,10 @@ export function LevelSelect({ skillName, onSelect, onBack }: LevelSelectProps) {
           <Button variant="outline" onClick={onBack}>
             Back
           </Button>
-          <Button disabled={!selected} onClick={() => selected && onSelect(selected)}>
+          <Button
+            disabled={!selected}
+            onClick={() => selected && onSelect(selected)}
+          >
             Continue
           </Button>
         </div>
