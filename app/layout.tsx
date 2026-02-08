@@ -4,6 +4,7 @@ import "./globals.css";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { CalendarSideBar } from "@/components/custom/CalendarSideBar";
 import { AuthProvider } from "@/components/AuthProvider";
+import { CalendarProvider } from "@/components/CalendarContext";
 import { AuthButton } from "@/components/AuthButton";
 
 const lexendDeca = Lexend_Deca({
@@ -27,18 +28,20 @@ export default function RootLayout({
         className={`${lexendDeca.variable} antialiased`}
       >
         <AuthProvider>
-          <SidebarProvider defaultOpen={false}>
-            <CalendarSideBar />
-            <main className="w-full relative">
-              <div className="absolute top-4 left-4 z-10">
-                <SidebarTrigger />
-              </div>
-              <div className="fixed top-4 right-4 z-50">
-                <AuthButton />
-              </div>
-              {children}
-            </main>
-          </SidebarProvider>
+          <CalendarProvider>
+            <SidebarProvider defaultOpen={false}>
+              <CalendarSideBar />
+              <main className="w-full relative">
+                <div className="absolute top-4 left-4 z-10">
+                  <SidebarTrigger />
+                </div>
+                <div className="fixed top-4 right-4 z-50">
+                  <AuthButton />
+                </div>
+                {children}
+              </main>
+            </SidebarProvider>
+          </CalendarProvider>
         </AuthProvider>
       </body>
     </html>

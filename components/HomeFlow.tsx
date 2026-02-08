@@ -12,6 +12,7 @@ import { NewDraftButton } from "@/components/custom/NewDraftButton";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { LessonPlan, Layer } from "@/types/lesson-plan";
+import { useCalendar } from "@/components/CalendarContext";
 
 // ---- Map form values → API body ----
 
@@ -43,7 +44,7 @@ type Step =
   | { kind: "form" }
   | { kind: "level"; formData: LandingFormData }
   | { kind: "loading"; formData: LandingFormData; level: SkillLevel }
-  | { kind: "tree"; skills: Skill[]; layers: Layer[]; planId: string | null; lessonDbIds: Record<number, string> }
+  | { kind: "tree"; skills: Skill[]; layers: Layer[]; planId: string | null; lessonDbIds: Record<number, string>; plan: LessonPlan }
   | { kind: "error"; message: string; formData: LandingFormData; level: SkillLevel }
   | { kind: "saved-plans" };
 
@@ -51,6 +52,7 @@ export default function HomeFlow() {
   const [step, setStep] = useState<Step>({ kind: "saved-plans" });
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const { setLessons, setDailyCommitmentMinutes } = useCalendar();
 
   const generatePlan = useCallback(
     async (formData: LandingFormData, level: SkillLevel) => {
@@ -94,14 +96,18 @@ export default function HomeFlow() {
           layers,
           planId: data.lesson_plan_id ?? null,
           lessonDbIds: data.lesson_db_ids ?? {},
+          plan,
         });
+        setLessons(plan.lessons);
+        const mins = parseInt(COMMITMENT_TO_MINUTES[formData.commitment] ?? formData.commitment, 10);
+        if (!isNaN(mins)) setDailyCommitmentMinutes(mins);
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Something went wrong.";
         setStep({ kind: "error", message, formData, level });
       }
     },
-    []
+    [setLessons, setDailyCommitmentMinutes]
   );
 
   const loadSavedPlan = useCallback(async (planId: string) => {
@@ -130,11 +136,82 @@ export default function HomeFlow() {
         layers,
         planId: data.lesson_plan_id,
         lessonDbIds: data.lesson_db_ids ?? {},
+        plan,
       });
+      setLessons(plan.lessons);
+      if (data.daily_commitment) {
+        setDailyCommitmentMinutes(parseInt(data.daily_commitment, 10) || 30);
+      }
     } catch {
       setStep({ kind: "saved-plans" });
     }
-  }, []);
+  }, [setLessons, setDailyCommitmentMinutes]);
+
+  const handleModifyPlan = useCallback(
+    async (modificationRequest: string) => {
+      console.log("[HomeFlow] handleModifyPlan called, step.kind:", step.kind);
+      if (step.kind !== "tree") {
+        console.log("[HomeFlow] step is not 'tree', returning early");
+        return;
+      }
+
+      console.log("[HomeFlow] sending modify request:", modificationRequest);
+      console.log("[HomeFlow] current plan title:", step.plan.title, "planId:", step.planId);
+      console.log("[HomeFlow] current plan lessons:", step.plan.lessons.map(l => `${l.lesson_number}: ${l.topic}`));
+
+      const res = await fetch("/api/modify-lesson-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPlan: step.plan,
+          modificationRequest,
+          planId: step.planId,
+        }),
+      });
+
+      console.log("[HomeFlow] API response status:", res.status);
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        console.error("[HomeFlow] API error body:", body);
+        throw new Error(body.error ?? `Request failed (${res.status})`);
+      }
+
+      const data = await res.json();
+      console.log("[HomeFlow] API response data keys:", Object.keys(data));
+      console.log("[HomeFlow] modified plan title:", data.title);
+      console.log("[HomeFlow] modified plan lessons:", data.lessons?.map((l: { lesson_number: number; topic: string }) => `${l.lesson_number}: ${l.topic}`));
+
+      const modifiedPlan: LessonPlan = data;
+      const { skills, layers } = convertLessonPlan(modifiedPlan);
+      console.log("[HomeFlow] converted skills count:", skills.length, "layers count:", layers.length);
+
+      // Hydrate completion state if returned
+      if (data.completions) {
+        console.log("[HomeFlow] hydrating completions:", data.completions);
+        for (const skill of skills) {
+          if (skill.lessonNumber != null) {
+            skill.completed = data.completions[skill.lessonNumber] ?? false;
+          }
+        }
+      } else {
+        console.log("[HomeFlow] no completions in response");
+      }
+
+      console.log("[HomeFlow] calling setStep with new tree data");
+      setStep({
+        kind: "tree",
+        skills,
+        layers,
+        planId: data.lesson_plan_id ?? step.planId,
+        lessonDbIds: data.lesson_db_ids ?? {},
+        plan: modifiedPlan,
+      });
+      setLessons(modifiedPlan.lessons);
+      console.log("[HomeFlow] modify complete, new step set");
+    },
+    [step, setLessons]
+  );
 
   // ---- Auth gate: redirect to login if not signed in ----
   useEffect(() => {
@@ -224,10 +301,10 @@ export default function HomeFlow() {
   return (
     <div className="relative h-screen w-screen">
       <div className="fixed top-16 right-4 z-20">
-        <NewDraftButton onClick={() => setStep({ kind: "saved-plans" })} />
+        <NewDraftButton onClick={() => { setLessons([]); setStep({ kind: "saved-plans" }); }} />
       </div>
       <div className="fixed bottom-4 left-1/2 z-20 -translate-x-1/2">
-        <AIPanelArrow />
+        <AIPanelArrow onModify={handleModifyPlan} />
       </div>
       <div className="absolute inset-0 z-0" style={{ backgroundColor: "#dde5d4" }}>
         <SkillTreeFlow

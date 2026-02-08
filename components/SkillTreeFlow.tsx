@@ -22,6 +22,7 @@ import type { SkillNodeData } from "./nodes/SkillNode";
 import { LayerLabelNode } from "./nodes/LayerLabelNode";
 import type { LayerLabelData } from "./nodes/LayerLabelNode";
 import type { LessonPlan, Difficulty, Layer } from "@/types/lesson-plan";
+import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -432,10 +433,28 @@ function SkillTreeFlow({
     }
   }, [selectedNode, planId, lessonDbIds]);
 
+  const progress = useMemo(() => {
+    const skillNodes = nodes.filter((n) => n.type === "skill");
+    const total = skillNodes.length;
+    const completed = skillNodes.filter((n) => n.data?.completed).length;
+    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+    return { completed, total, percentage };
+  }, [nodes]);
+
   const d = selectedNode?.data;
 
   return (
     <div className="h-full w-full">
+      {/* Progress bar */}
+      {progress.total > 0 && (
+        <div className="absolute top-4 left-1/2 z-10 -translate-x-1/2 flex items-center gap-3 bg-white/90 backdrop-blur-sm shadow-md rounded-lg px-4 py-2">
+          <Progress value={progress.percentage} className="w-40" />
+          <span className="text-sm font-medium text-zinc-700 whitespace-nowrap">
+            {progress.completed}/{progress.total} completed
+          </span>
+        </div>
+      )}
+
       <ReactFlow
         nodes={nodes}
         edges={edges}

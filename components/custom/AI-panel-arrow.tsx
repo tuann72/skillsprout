@@ -4,15 +4,47 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronUp, ChevronDown } from "lucide-react";
+import { ChevronUp, ChevronDown, Loader2 } from "lucide-react";
 
-export function AIPanelArrow() {
+interface AIPanelArrowProps {
+  onModify?: (request: string) => Promise<void>;
+}
+
+export function AIPanelArrow({ onModify }: AIPanelArrowProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
-    // TODO: API call here
-    console.log("Submit:", input);
+  const handleSubmit = async () => {
+    console.log("[AI-Panel] handleSubmit called, input:", input, "onModify:", !!onModify, "isLoading:", isLoading);
+    if (!input.trim() || isLoading || !onModify) {
+      console.log("[AI-Panel] early return — empty input:", !input.trim(), "loading:", isLoading, "no onModify:", !onModify);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      console.log("[AI-Panel] calling onModify with:", input.trim());
+      await onModify(input.trim());
+      console.log("[AI-Panel] onModify resolved successfully");
+      setInput("");
+      setIsOpen(false);
+    } catch (err) {
+      console.error("[AI-Panel] onModify threw error:", err);
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
   };
 
   return (
@@ -23,22 +55,34 @@ export function AIPanelArrow() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="flex gap-2 w-full sm:w-auto"
+            className="flex flex-col gap-2 w-full sm:w-auto"
           >
-            <Input
-              placeholder="Modify my task ..."
-              className="flex-1 sm:w-96 h-12 bg-muted border-2 border-gray-400"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              autoFocus
-            />
-            <Button
-              onClick={handleSubmit}
-              size="icon"
-              className="h-12 w-16 shrink-0 cursor-pointer"
-            >
-              Submit
-            </Button>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Modify my lesson plan..."
+                className="flex-1 sm:w-96 h-12 bg-muted border-2 border-gray-400"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isLoading}
+                autoFocus
+              />
+              <Button
+                onClick={handleSubmit}
+                size="icon"
+                className="h-12 w-16 shrink-0 cursor-pointer"
+                disabled={!input.trim() || isLoading}
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Submit"
+                )}
+              </Button>
+            </div>
+            {error && (
+              <p className="text-sm text-destructive text-center">{error}</p>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

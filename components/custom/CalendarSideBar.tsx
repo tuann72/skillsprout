@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -10,31 +9,45 @@ import {
   SidebarGroupLabel,
 } from "@/components/ui/sidebar";
 import { Calendar } from "@/components/ui/calendar";
-import { Button } from "@/components/ui/button";
-import { BookOpen } from "lucide-react";
+import { useCalendar } from "@/components/CalendarContext";
+import { computeSchedule, type ScheduledLesson } from "@/lib/schedule";
 
-interface CalendarSideBarProps {
-  onDateSelect?: (date: Date) => void;
+function dateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
-export function CalendarSideBar({ onDateSelect }: CalendarSideBarProps) {
+export function CalendarSideBar() {
   const [date, setDate] = useState<Date>(new Date());
-  const router = useRouter();
+  const { lessons, dailyCommitmentMinutes } = useCalendar();
 
+  const { scheduleMap } = useMemo(
+    () =>
+      lessons.length > 0
+        ? computeSchedule(lessons, dailyCommitmentMinutes)
+        : { scheduledLessons: [], scheduleMap: new Map<string, ScheduledLesson[]>() },
+    [lessons, dailyCommitmentMinutes]
+  );
 
-  // Notify parent of initial date on mount
-  useEffect(() => {
-    onDateSelect?.(date);
-  }, []);
+  // Collect all scheduled dates for calendar highlighting
+  const scheduledDates = useMemo(() => {
+    const dates: Date[] = [];
+    for (const key of scheduleMap.keys()) {
+      const [y, m, d] = key.split("-").map(Number);
+      dates.push(new Date(y, m - 1, d));
+    }
+    return dates;
+  }, [scheduleMap]);
 
   const handleDateSelect = (selectedDate: Date | undefined) => {
     if (selectedDate) {
       setDate(selectedDate);
-      onDateSelect?.(selectedDate);
     }
   };
 
-
+  const selectedDayLessons = scheduleMap.get(dateKey(date)) ?? [];
 
   return (
     <Sidebar>
@@ -46,6 +59,8 @@ export function CalendarSideBar({ onDateSelect }: CalendarSideBarProps) {
               mode="single"
               selected={date}
               onSelect={handleDateSelect}
+              modifiers={{ scheduled: scheduledDates }}
+              modifiersClassNames={{ scheduled: "bg-emerald-200 text-emerald-900 font-semibold" }}
             />
             <div className="px-3 py-2 text-sm text-muted-foreground">
               Selected: {date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
@@ -54,15 +69,34 @@ export function CalendarSideBar({ onDateSelect }: CalendarSideBarProps) {
         </SidebarGroup>
 
         <SidebarGroup>
+          <SidebarGroupLabel>
+            {lessons.length > 0 ? "Lessons for this day" : "Schedule"}
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <Button
-              onClick={() => router.push("/saved-lessons")}
-              variant="outline"
-              className="w-full"
-            >
-              <BookOpen className="mr-2 h-4 w-4" />
-              View Saved Lessons
-            </Button>
+            {lessons.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-muted-foreground">
+                Generate a plan to see your schedule.
+              </p>
+            ) : selectedDayLessons.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-muted-foreground">
+                No lessons scheduled for this day.
+              </p>
+            ) : (
+              <ul className="space-y-2 px-3 py-2">
+                {selectedDayLessons.map((sl) => (
+                  <li key={sl.lessonNumber} className="rounded-md border p-2">
+                    <p className="text-sm font-medium">
+                      Lesson {sl.lessonNumber}: {sl.topic}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {sl.daySpan === 1
+                        ? "1 day"
+                        : `${sl.daySpan} days (${sl.startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${sl.endDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })})`}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
