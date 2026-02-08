@@ -104,7 +104,6 @@ export default function HomeFlow() {
   // ---- Loading ----
   if (step.kind === "loading") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-zinc-50">
       <div className="flex min-h-screen flex-col items-center justify-center gap-4" style={{ backgroundColor: "#dde5d4" }}>
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
         <p className="text-lg font-medium text-zinc-700">
