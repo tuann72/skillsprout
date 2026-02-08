@@ -30,14 +30,15 @@ export default function LandingPage() {
         }}
       >
         {/* Background pine trees */}
-        <div className="absolute inset-0 pointer-events-none">
-          <Image
-            src="/pine-trees-forest.png"
-            alt=""
-            fill
-            className="object-contain object-bottom opacity-30"
-            priority
-          />
+        <div className="absolute inset-x-0 bottom-0 h-[40%] pointer-events-none"
+          style={{                                                                                                                            
+            backgroundImage: "url('/pine-trees-forest.png')",                                                                                 
+            backgroundRepeat: "repeat-x",                                                                                                     
+            backgroundPosition: "bottom",
+            backgroundSize: "auto 100%",
+            opacity: 0.3,
+          }}
+        >
         </div>
         {/* Hero */}
         <section className="relative flex-1 flex flex-col items-center justify-start text-center px-6 pt-[20vh] pb-24">
