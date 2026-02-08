@@ -147,9 +147,7 @@ export function SavedPlans({ onSelect, onGenerateNew }: SavedPlansProps) {
       setImportOpen(false);
       setPasteValue("");
     } catch (err) {
-      setImportError(
-        err instanceof Error ? err.message : "Import failed"
-      );
+      setImportError(err instanceof Error ? err.message : "Import failed");
     } finally {
       setImporting(false);
     }
@@ -163,7 +161,7 @@ export function SavedPlans({ onSelect, onGenerateNew }: SavedPlansProps) {
         Array.from(files).map(async (file) => {
           const text = await file.text();
           return JSON.parse(text);
-        })
+        }),
       );
       await importPlans(plans);
     } catch {
@@ -187,7 +185,7 @@ export function SavedPlans({ onSelect, onGenerateNew }: SavedPlansProps) {
   return (
     <div
       className="flex min-h-screen flex-col items-center p-8"
-      style={{ backgroundColor: "#dde5d4" }}
+      style={{ backgroundColor: "#e8f5ff" }}
     >
       <div className="w-full max-w-2xl">
         <h1 className="mb-6 text-2xl font-bold text-zinc-900">My Plans</h1>
@@ -409,7 +407,7 @@ export function SavedPlans({ onSelect, onGenerateNew }: SavedPlansProps) {
             <div className="space-y-3">
               <textarea
                 className="h-40 w-full resize-none rounded-lg border border-zinc-300 p-3 text-sm font-mono focus:border-emerald-500 focus:outline-none"
-                placeholder='Paste your lesson plan JSON here...'
+                placeholder="Paste your lesson plan JSON here..."
                 value={pasteValue}
                 onChange={(e) => setPasteValue(e.target.value)}
               />
