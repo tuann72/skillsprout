@@ -75,10 +75,11 @@ export function LandingForm({ onSubmit }: LandingFormProps) {
                   <SelectValue placeholder="Pick a range" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="3">3</SelectItem>
-                  <SelectItem value="5">5</SelectItem>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="15">15</SelectItem>
+                  <SelectItem value="3-5">3 - 5 lessons</SelectItem>
+                  <SelectItem value="6-10">6 - 10 lessons</SelectItem>
+                  <SelectItem value="11-15">11 - 15 lessons</SelectItem>
+                  <SelectItem value="15-20">15 - 20 lessons</SelectItem>
+                  <SelectItem value="21-30">21 - 30 lessons</SelectItem>
                 </SelectContent>
               </Select>
             </div>

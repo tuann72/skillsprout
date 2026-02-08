@@ -81,7 +81,7 @@ export default function HomeFlow() {
             duration: DURATION_LABELS[formData.duration] ?? formData.duration,
             dailyCommitment:
               COMMITMENT_TO_MINUTES[formData.commitment] ?? formData.commitment,
-            lessonCount: formData.lessonCount || "10",
+            lessonCount: formData.lessonCount || "6-10",
           }),
         });
 
