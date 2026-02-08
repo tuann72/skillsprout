@@ -56,7 +56,7 @@ export function LevelSelect({ skillName, onSelect, onBack }: LevelSelectProps) {
   const [selected, setSelected] = useState<SkillLevel | null>(null);
 
   return (
-    <div className="relative z-20 flex min-h-screen items-center justify-center bg-zinc-50 p-4">
+    <div className="relative z-20 flex min-h-screen items-center justify-center p-4" style={{ backgroundColor: "#dde5d4" }}>
       <div className="w-full max-w-2xl space-y-6">
         <div className="text-center">
           <h1 className="text-2xl font-semibold tracking-tight">

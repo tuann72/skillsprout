@@ -105,6 +105,7 @@ export default function HomeFlow() {
   if (step.kind === "loading") {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-zinc-50">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4" style={{ backgroundColor: "#dde5d4" }}>
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
         <p className="text-lg font-medium text-zinc-700">
           Building your skill tree&hellip;
@@ -153,7 +154,7 @@ export default function HomeFlow() {
       <div className="fixed bottom-4 left-1/2 z-20 -translate-x-1/2">
         <AIPanelArrow />
       </div>
-      <div className="absolute inset-0 z-0 bg-white">
+      <div className="absolute inset-0 z-0" style={{ backgroundColor: "#dde5d4" }}>
         <SkillTreeFlow skills={step.skills} layers={step.layers} />
       </div>
     </div>
